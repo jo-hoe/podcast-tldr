@@ -10,7 +10,7 @@ jobs:
   yaml:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Lint YAML manifests
         uses: ibiqlik/action-yamllint@v3
         with:
