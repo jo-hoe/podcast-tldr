@@ -2,7 +2,7 @@ logLevel: info
 workDir: /app/mount/work
 maxParallelDownloads: 4
 feeds:
-  - url: https://feeds.megaphone.fm/sciencevs
+  - url: https://podcasts.files.bbci.co.uk/p0my6g8q.rss
     selector:
       startEpisode: 1
       endEpisode: 1
