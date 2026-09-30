@@ -21,13 +21,13 @@ and writes the manifest back.
 
 | Stage | Repo | Language | Role |
 |------|------|----------|------|
-| — | [podcast-tldr-manifest](https://github.com/jo-hoe/podcast-tldr-manifest) | Go | Shared stage contract (`episodes.yaml`) |
-| A | [podcast-tldr-download](https://github.com/jo-hoe/podcast-tldr-download) | Go | RSS → audio + manifest |
-| B | [podcast-tldr-transcribe](https://github.com/jo-hoe/podcast-tldr-transcribe) | Python | audio → transcript (faster-whisper) |
-| C | [podcast-tldr-summarize](https://github.com/jo-hoe/podcast-tldr-summarize) | Go | transcript → summary (LiteLLM) |
-| D | [podcast-tldr-zip](https://github.com/jo-hoe/podcast-tldr-zip) | Go | bundle transcript + metadata → `.zip` |
-| E | [podcast-tldr-backup](https://github.com/jo-hoe/podcast-tldr-backup) | Go | push summary + bundle to a private archive |
-| — | [podcast-tldr-archive](https://github.com/jo-hoe/podcast-tldr-archive) | — | Private backup target |
+| — | [manifest-lib](https://github.com/jo-hoe/manifest-lib) | Go | Shared stage contract (`episodes.yaml`) |
+| A | [rss-audio-downloader](https://github.com/jo-hoe/rss-audio-downloader) | Go | RSS → audio + manifest |
+| B | [whisper-transcriber](https://github.com/jo-hoe/whisper-transcriber) | Python | audio → transcript (faster-whisper) |
+| C | [llm-summarizer](https://github.com/jo-hoe/llm-summarizer) | Go | transcript → summary (LiteLLM) |
+| D | [artifact-zipper](https://github.com/jo-hoe/artifact-zipper) | Go | bundle transcript + metadata → `.zip` |
+| E | [git-archive-backup](https://github.com/jo-hoe/git-archive-backup) | Go | push summary + bundle to a private archive |
+| — | [media-archive](https://github.com/jo-hoe/media-archive) | — | Private backup target |
 
 ## Deployment Options
 
@@ -91,7 +91,7 @@ make stop-k3d
 3. Tune the summarization prompt in [`config/prompt.txt`](./config/prompt.txt).
 4. Run the pipeline via compose, Jobs, or Argo.
 5. Find summaries + bundles committed to your private
-   [archive repo](https://github.com/jo-hoe/podcast-tldr-archive) under
+   [archive repo](https://github.com/jo-hoe/media-archive) under
    `podcasts/<show>/<episode>/`.
 
 ## The stage contract
@@ -99,7 +99,7 @@ make stop-k3d
 A single `episodes.yaml` accumulates state as it flows through the stages
 (`audioFile` → `transcriptFile` → `summaryFile` → `bundleFile` → `backedUp`). It is
 defined and versioned in
-[podcast-tldr-manifest](https://github.com/jo-hoe/podcast-tldr-manifest).
+[manifest-lib](https://github.com/jo-hoe/manifest-lib).
 
 ## Limitations
 
@@ -115,6 +115,6 @@ defined and versioned in
 
 ## Relevant Links
 
-- Manifest contract: [podcast-tldr-manifest](https://github.com/jo-hoe/podcast-tldr-manifest)
+- Manifest contract: [manifest-lib](https://github.com/jo-hoe/manifest-lib)
 - Conventions mirror: [video-to-podcast-service](https://github.com/jo-hoe/video-to-podcast-service)
 - [LiteLLM](https://docs.litellm.ai/), [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [Argo Workflows](https://argo-workflows.readthedocs.io/)

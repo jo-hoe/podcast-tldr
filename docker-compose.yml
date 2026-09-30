@@ -10,7 +10,7 @@
 
 services:
   download:
-    image: ghcr.io/jo-hoe/podcast-tldr-download:latest
+    image: ghcr.io/jo-hoe/rss-audio-downloader:latest
     volumes:
       - "./config/download.yaml:/app/config/config.yaml:ro"
       - "./volume/work:/app/mount/work"
@@ -18,7 +18,7 @@ services:
       CONFIG_PATH: /app/config/config.yaml
 
   transcribe:
-    image: ghcr.io/jo-hoe/podcast-tldr-transcribe:latest
+    image: ghcr.io/jo-hoe/whisper-transcriber:latest
     volumes:
       - "./config/transcribe.yaml:/app/config/config.yaml:ro"
       - "./volume/work:/app/mount/work"
@@ -30,7 +30,7 @@ services:
         condition: service_completed_successfully
 
   summarize:
-    image: ghcr.io/jo-hoe/podcast-tldr-summarize:latest
+    image: ghcr.io/jo-hoe/llm-summarizer:latest
     volumes:
       - "./config/summarize.yaml:/app/config/config.yaml:ro"
       - "./config/prompt.txt:/app/config/prompt.txt:ro"
@@ -45,7 +45,7 @@ services:
         condition: service_completed_successfully
 
   zip:
-    image: ghcr.io/jo-hoe/podcast-tldr-zip:latest
+    image: ghcr.io/jo-hoe/artifact-zipper:latest
     volumes:
       - "./config/zip.yaml:/app/config/config.yaml:ro"
       - "./volume/work:/app/mount/work"
@@ -56,7 +56,7 @@ services:
         condition: service_completed_successfully
 
   backup:
-    image: ghcr.io/jo-hoe/podcast-tldr-backup:latest
+    image: ghcr.io/jo-hoe/git-archive-backup:latest
     volumes:
       - "./config/backup.yaml:/app/config/config.yaml:ro"
       - "./volume/work:/app/mount/work"

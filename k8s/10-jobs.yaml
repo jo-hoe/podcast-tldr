@@ -8,11 +8,11 @@
 #   kubectl apply -f k8s/10-jobs.yaml   # then watch each Job complete in order
 #
 # For strict sequencing without Argo, apply/wait one Job at a time:
-#   kubectl wait --for=condition=complete job/podcast-tldr-download --timeout=1h
+#   kubectl wait --for=condition=complete job/rss-audio-downloader --timeout=1h
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: podcast-tldr-download
+  name: rss-audio-downloader
 spec:
   backoffLimit: 2
   template:
@@ -21,7 +21,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: download
-          image: ghcr.io/jo-hoe/podcast-tldr-download:latest
+          image: ghcr.io/jo-hoe/rss-audio-downloader:latest
           env: [{ name: CONFIG_PATH, value: /app/config/download.yaml }]
           volumeMounts:
             - { name: work, mountPath: /app/mount/work }
@@ -33,7 +33,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: podcast-tldr-transcribe
+  name: whisper-transcriber
 spec:
   backoffLimit: 2
   template:
@@ -41,7 +41,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: transcribe
-          image: ghcr.io/jo-hoe/podcast-tldr-transcribe:latest
+          image: ghcr.io/jo-hoe/whisper-transcriber:latest
           env: [{ name: CONFIG_PATH, value: /app/config/transcribe.yaml }]
           resources:
             requests: { cpu: "500m", memory: 2Gi }
@@ -58,7 +58,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: podcast-tldr-summarize
+  name: llm-summarizer
 spec:
   backoffLimit: 2
   template:
@@ -67,7 +67,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: summarize
-          image: ghcr.io/jo-hoe/podcast-tldr-summarize:latest
+          image: ghcr.io/jo-hoe/llm-summarizer:latest
           env:
             - { name: CONFIG_PATH, value: /app/config/summarize.yaml }
             - name: LITELLM_API_KEY
@@ -82,7 +82,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: podcast-tldr-zip
+  name: artifact-zipper
 spec:
   backoffLimit: 2
   template:
@@ -91,7 +91,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: zip
-          image: ghcr.io/jo-hoe/podcast-tldr-zip:latest
+          image: ghcr.io/jo-hoe/artifact-zipper:latest
           env: [{ name: CONFIG_PATH, value: /app/config/zip.yaml }]
           volumeMounts:
             - { name: work, mountPath: /app/mount/work }
@@ -103,7 +103,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: podcast-tldr-backup
+  name: git-archive-backup
 spec:
   backoffLimit: 2
   template:
@@ -112,7 +112,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: backup
-          image: ghcr.io/jo-hoe/podcast-tldr-backup:latest
+          image: ghcr.io/jo-hoe/git-archive-backup:latest
           env:
             - { name: CONFIG_PATH, value: /app/config/backup.yaml }
             - name: PODCAST_TLDR_BACKUP_TOKEN

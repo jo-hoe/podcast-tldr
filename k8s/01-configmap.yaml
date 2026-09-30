@@ -44,7 +44,7 @@ data:
   backup.yaml: |
     logLevel: info
     workDir: /app/mount/work
-    repoURL: https://github.com/jo-hoe/podcast-tldr-archive.git
+    repoURL: https://github.com/jo-hoe/media-archive.git
     tokenEnv: PODCAST_TLDR_BACKUP_TOKEN
     branch: main
     authorName: podcast-tldr-bot

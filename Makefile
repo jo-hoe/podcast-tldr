@@ -3,7 +3,8 @@ include help.mk
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
 # The feature repos, expected as sibling checkouts under ../ for local image builds.
-STAGES := download transcribe summarize zip backup
+# Each name is both the sibling directory and the image name.
+STAGES := rss-audio-downloader whisper-transcriber llm-summarizer artifact-zipper git-archive-backup
 IMAGE_VERSION := 1.0.0
 
 .DEFAULT_GOAL := help
@@ -31,9 +32,9 @@ create-cluster: ## create the local k3d cluster
 .PHONY: build-and-push
 build-and-push: ## build every stage image from sibling repos and push to the local registry
 	@for stage in $(STAGES); do \
-		echo "building podcast-tldr-$$stage"; \
-		docker build -t localhost:5000/podcast-tldr-$$stage:${IMAGE_VERSION} ${ROOT_DIR}../podcast-tldr-$$stage; \
-		docker push localhost:5000/podcast-tldr-$$stage:${IMAGE_VERSION}; \
+		echo "building $$stage"; \
+		docker build -t localhost:5000/$$stage:${IMAGE_VERSION} ${ROOT_DIR}../$$stage; \
+		docker push localhost:5000/$$stage:${IMAGE_VERSION}; \
 	done
 
 .PHONY: deploy

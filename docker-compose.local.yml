@@ -3,12 +3,12 @@
 #   docker compose -f docker-compose.yml -f docker-compose.local.yml up --abort-on-container-exit
 services:
   download:
-    image: podcast-tldr-download:local
+    image: rss-audio-downloader:local
   transcribe:
-    image: podcast-tldr-transcribe:local
+    image: whisper-transcriber:local
   summarize:
-    image: podcast-tldr-summarize:local
+    image: llm-summarizer:local
   zip:
-    image: podcast-tldr-zip:local
+    image: artifact-zipper:local
   backup:
-    image: podcast-tldr-backup:local
+    image: git-archive-backup:local
