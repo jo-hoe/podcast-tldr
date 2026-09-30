@@ -29,25 +29,85 @@ and writes the manifest back.
 | E | [git-archive-backup](https://github.com/jo-hoe/git-archive-backup) | Go | push summary + bundle to a private archive |
 | — | [media-archive](https://github.com/jo-hoe/media-archive) | — | Private backup target |
 
+## Quickstart
+
+Run the whole pipeline locally with Docker Compose. You need Docker, the `gh` CLI
+(for the backup token), and the five stage repos checked out as siblings under `../`
+(only if you want to build images locally — otherwise the published `ghcr.io` images
+are pulled for you).
+
+```bash
+# 1. Point the pipeline at the episode(s) you want (see Example configuration below).
+$EDITOR config/download.yaml
+
+# 2. Backup pushes to your private archive repo. Reuse the gh CLI token (repo scope)
+#    or export a dedicated PAT. Summarization uses the keyless ai-proxy, so no LLM key.
+export PODCAST_TLDR_BACKUP_TOKEN="$(gh auth token)"
+
+# 3. Run all five stages in order on a shared ./volume/work.
+docker compose up -d      # download -> transcribe -> summarize -> zip -> backup
+
+# 4. Watch it run; the chain is sequenced, so wait on the last stage.
+docker compose logs -f backup
+
+# 5. Your report + bundle are committed to the private archive repo under
+#    podcasts/<show>/<episode>/{summary.md,bundle.zip}, and ./volume/work holds
+#    the intermediate artifacts (audio/, transcripts/, summaries/, bundles/).
+```
+
+> **Running locally built images.** To use images built from the sibling repos
+> instead of `ghcr.io`, add the override file:
+> `docker compose -f docker-compose.yml -f docker-compose.local.yml up -d`.
+> Build them first with `make build-and-push` (k3d) or `docker build` per repo.
+
+> **Note.** Don't use `--abort-on-container-exit` with this compose file — the stages
+> are a sequential `depends_on` chain, and that flag tears down the whole run the
+> moment the first stage exits. Run detached (`-d`) and follow the `backup` logs.
+
+## Example configuration
+
+Each stage reads one small YAML file from [`config/`](./config). The only file you
+normally edit is `config/download.yaml` — which feed(s) to pull and which episodes:
+
+```yaml
+# config/download.yaml — what to fetch.
+logLevel: info
+workDir: /app/mount/work        # shared work dir (mounted); leave as-is
+maxParallelDownloads: 4
+feeds:
+  - url: https://podcasts.files.bbci.co.uk/p0my6g8q.rss   # the RSS feed
+    selector:
+      # Episodes are newest-first. Pick ONE selection style:
+      startEpisode: 1           # index range (1 = latest). Here: just the latest.
+      endEpisode: 1
+      # startDate: 2026-01-01   # …or a publish-date window (RFC3339), each optional
+      # endDate:   2026-12-31
+      # nameRegex: "(?i)series 5"   # …or a title regex. Empty = all episodes.
+```
+
+The other stage configs work out of the box; tune them only if you need to:
+
+| File | Key knobs |
+|------|-----------|
+| [`config/transcribe.yaml`](./config/transcribe.yaml) | `modelName` (`base`/`small`/…), `device` (`cpu`/`cuda`), `computeType` |
+| [`config/summarize.yaml`](./config/summarize.yaml) | `baseURL`, `model` (`gpt-5`), `reasoningModel`, `maxTokens` |
+| [`config/prompt.txt`](./config/prompt.txt) | the report instructions (metadata-aware, error-correcting) |
+| [`config/backup.yaml`](./config/backup.yaml) | `repoURL` (your archive repo), `branch`, `authorName`/`authorEmail` |
+
+To route summarization through your own LLM instead of the keyless ai-proxy, point
+`config/summarize.yaml`'s `baseURL` at the bundled LiteLLM sidecar
+(`http://litellm:4000/v1`) and configure the model in
+[`litellm/config.yaml`](./litellm/config.yaml).
+
 ## Deployment Options
 
 ### Docker Compose (local, end-to-end)
 
-Runs all five stages in order on a shared `./volume/work`. Summarization talks to
-the keyless, OpenAI-compatible [ai-proxy](https://github.com/jo-hoe/ai-proxy)
+See [Quickstart](#quickstart) for the minimal run. Runs all five stages in order on
+a shared `./volume/work`. Summarization talks to the keyless, OpenAI-compatible
+[ai-proxy](https://github.com/jo-hoe/ai-proxy)
 (`https://ai-proxy.johoe.duckdns.org/openai/v1`, model `gpt-5`) — no LLM key needed.
 An optional LiteLLM sidecar is included if you prefer to route through it instead.
-
-```bash
-# Backup pushes to the private archive repo. For a local run you can reuse the
-# gh CLI's token (needs repo scope); or set a dedicated PAT.
-export PODCAST_TLDR_BACKUP_TOKEN="$(gh auth token)"
-
-make start-compose      # download -> transcribe -> summarize -> zip -> backup
-```
-
-Configure each stage in [`config/`](./config) and the LLM gateway in
-[`litellm/config.yaml`](./litellm/config.yaml).
 
 ### Kubernetes — plain Jobs
 
