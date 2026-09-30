@@ -1,0 +1,107 @@
+# Argo WorkflowTemplate chaining the podcast-tldr pipeline A -> B -> C -> D -> E.
+#
+# All stages share one ReadWriteMany PVC (`podcast-tldr-work`) mounted at
+# /app/mount/work, so each stage reads the episodes.yaml the previous stage wrote.
+# The DAG enforces ordering; `parallelism` bounds how many stages/steps Argo runs
+# at once (per the requirement that steps may run in parallel with configurable
+# limits — raise it when fanning out multiple feeds/episodes).
+#
+# Prerequisites (apply once): the work PVC and the LiteLLM Deployment/Service and
+# the backup token Secret from ./k8s.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: podcast-tldr
+spec:
+  entrypoint: pipeline
+  parallelism: 2
+  arguments:
+    parameters:
+      - name: workPvc
+        value: podcast-tldr-work
+  volumes:
+    - name: work
+      persistentVolumeClaim:
+        claimName: "{{workflow.parameters.workPvc}}"
+    - name: config
+      configMap:
+        name: podcast-tldr-config
+    - name: models
+      persistentVolumeClaim:
+        claimName: podcast-tldr-models
+
+  templates:
+    - name: pipeline
+      dag:
+        tasks:
+          - name: download
+            template: stage-download
+          - name: transcribe
+            template: stage-transcribe
+            dependencies: [download]
+          - name: summarize
+            template: stage-summarize
+            dependencies: [transcribe]
+          - name: zip
+            template: stage-zip
+            dependencies: [summarize]
+          - name: backup
+            template: stage-backup
+            dependencies: [zip]
+
+    - name: stage-download
+      container:
+        image: ghcr.io/jo-hoe/podcast-tldr-download:latest
+        env:
+          - name: CONFIG_PATH
+            value: /app/config/download.yaml
+        volumeMounts:
+          - { name: work, mountPath: /app/mount/work }
+          - { name: config, mountPath: /app/config, readOnly: true }
+
+    - name: stage-transcribe
+      container:
+        image: ghcr.io/jo-hoe/podcast-tldr-transcribe:latest
+        env:
+          - name: CONFIG_PATH
+            value: /app/config/transcribe.yaml
+        volumeMounts:
+          - { name: work, mountPath: /app/mount/work }
+          - { name: models, mountPath: /app/mount/models }
+          - { name: config, mountPath: /app/config, readOnly: true }
+
+    - name: stage-summarize
+      container:
+        image: ghcr.io/jo-hoe/podcast-tldr-summarize:latest
+        env:
+          - name: CONFIG_PATH
+            value: /app/config/summarize.yaml
+          - name: LITELLM_API_KEY
+            valueFrom:
+              secretKeyRef: { name: podcast-tldr-secrets, key: litellmApiKey }
+        volumeMounts:
+          - { name: work, mountPath: /app/mount/work }
+          - { name: config, mountPath: /app/config, readOnly: true }
+
+    - name: stage-zip
+      container:
+        image: ghcr.io/jo-hoe/podcast-tldr-zip:latest
+        env:
+          - name: CONFIG_PATH
+            value: /app/config/zip.yaml
+        volumeMounts:
+          - { name: work, mountPath: /app/mount/work }
+          - { name: config, mountPath: /app/config, readOnly: true }
+
+    - name: stage-backup
+      container:
+        image: ghcr.io/jo-hoe/podcast-tldr-backup:latest
+        env:
+          - name: CONFIG_PATH
+            value: /app/config/backup.yaml
+          - name: PODCAST_TLDR_BACKUP_TOKEN
+            valueFrom:
+              secretKeyRef: { name: podcast-tldr-secrets, key: backupToken }
+        volumeMounts:
+          - { name: work, mountPath: /app/mount/work }
+          - { name: config, mountPath: /app/config, readOnly: true }

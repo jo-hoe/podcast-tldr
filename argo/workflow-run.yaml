@@ -1,0 +1,9 @@
+# A Workflow that runs the podcast-tldr WorkflowTemplate once.
+#   argo submit -n argo argo/workflow-run.yaml --watch
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: podcast-tldr-
+spec:
+  workflowTemplateRef:
+    name: podcast-tldr

@@ -1,0 +1,13 @@
+logLevel: info
+workDir: /app/mount/work
+# ai-proxy exposes an OpenAI-compatible surface and needs no client API key.
+baseURL: https://ai-proxy.johoe.duckdns.org/openai/v1
+model: gpt-5
+# gpt-5 is a reasoning model: it needs max_completion_tokens (not max_tokens) and
+# rejects any temperature other than 1, so the stage omits temperature in this mode.
+reasoningModel: true
+apiKeyEnv: LITELLM_API_KEY
+promptPath: /app/config/prompt.txt
+# Reasoning models spend most of the budget on hidden reasoning before emitting
+# text, so the budget is generous.
+maxTokens: 8000

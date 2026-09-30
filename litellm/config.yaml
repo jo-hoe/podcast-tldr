@@ -1,0 +1,30 @@
+# Example LiteLLM proxy configuration.
+#
+# The summarize stage can talk to an OpenAI-compatible endpoint directly (see
+# config/summarize.yaml, which points at the ai-proxy). This LiteLLM proxy is an
+# optional alternative gateway: it exposes the `summarizer` alias on :4000 and here
+# routes it to the same ai-proxy upstream, so you can switch backends in one place.
+#
+# ai-proxy (https://ai-proxy.johoe.duckdns.org) is an OpenAI-compatible surface that
+# needs no client key, so no api_key/env is required below.
+
+model_list:
+  - model_name: summarizer
+    litellm_params:
+      # Route through the keyless ai-proxy OpenAI surface. Swap for any other
+      # LiteLLM-supported backend if you prefer, e.g.:
+      #   model: anthropic/claude-sonnet-5
+      #   model: ollama/llama3
+      model: openai/gpt-5
+      api_base: https://ai-proxy.johoe.duckdns.org/openai/v1
+      api_key: "none"
+
+litellm_settings:
+  # Drop params the upstream model rejects (e.g. gpt-5 rejects max_tokens and
+  # non-default temperature) so callers using OpenAI defaults still succeed.
+  drop_params: true
+
+# Optional: require callers to present a key. The summarize stage sends the value
+# of its apiKeyEnv env var as the bearer token.
+# general_settings:
+#   master_key: os.environ/LITELLM_MASTER_KEY

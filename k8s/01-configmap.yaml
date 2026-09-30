@@ -1,0 +1,51 @@
+# Per-stage configuration mounted into every stage at /app/config.
+# Generated from the files in ../config; keep them in sync.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: podcast-tldr-config
+data:
+  download.yaml: |
+    logLevel: info
+    workDir: /app/mount/work
+    maxParallelDownloads: 4
+    feeds:
+      - url: https://feeds.megaphone.fm/sciencevs
+        selector:
+          startEpisode: 1
+          endEpisode: 2
+  transcribe.yaml: |
+    logLevel: info
+    workDir: /app/mount/work
+    modelName: base
+    modelCachePath: /app/mount/models
+    device: cpu
+    computeType: int8
+    outputFormat: json
+  summarize.yaml: |
+    logLevel: info
+    workDir: /app/mount/work
+    # ai-proxy is OpenAI-compatible and needs no client key.
+    baseURL: https://ai-proxy.johoe.duckdns.org/openai/v1
+    model: gpt-5
+    # gpt-5 reasoning model: uses max_completion_tokens and omits temperature.
+    reasoningModel: true
+    apiKeyEnv: LITELLM_API_KEY
+    promptPath: /app/config/prompt.txt
+    maxTokens: 8000
+  prompt.txt: |
+    You are an expert note-taker summarizing a podcast episode transcript so the
+    listener can recollect the key findings later. Produce a well-structured
+    Markdown summary with a TL;DR, key takeaways, notable claims/data, and
+    references worth following up. Be faithful to the transcript. Transcript follows:
+  zip.yaml: |
+    logLevel: info
+    workDir: /app/mount/work
+  backup.yaml: |
+    logLevel: info
+    workDir: /app/mount/work
+    repoURL: https://github.com/jo-hoe/podcast-tldr-archive.git
+    tokenEnv: PODCAST_TLDR_BACKUP_TOKEN
+    branch: main
+    authorName: podcast-tldr-bot
+    authorEmail: podcast-tldr-bot@users.noreply.github.com

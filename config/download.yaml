@@ -1,0 +1,8 @@
+logLevel: info
+workDir: /app/mount/work
+maxParallelDownloads: 4
+feeds:
+  - url: https://feeds.megaphone.fm/sciencevs
+    selector:
+      startEpisode: 1
+      endEpisode: 1

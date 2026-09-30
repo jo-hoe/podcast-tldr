@@ -1,0 +1,17 @@
+# Local pipeline artifacts (shared work + model cache mounts)
+/volume/
+
+# Secrets — never commit real values
+k8s/02-secrets.yaml
+*.env
+.env
+
+# Claude Code session state
+.claude/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

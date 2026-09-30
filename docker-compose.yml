@@ -1,0 +1,82 @@
+# Full podcast-tldr pipeline, run locally end-to-end on a shared work volume.
+#
+# Stages run in order (A -> B -> C -> D -> E) against ./volume/work, each container
+# reading the episodes.yaml the previous stage wrote. `depends_on` with
+# `condition: service_completed_successfully` sequences the run-once stages.
+#
+# The images are pulled from ghcr.io by default; to run locally built images,
+# build each stage repo and override the `image:` (or add `build:` with the repo
+# path). LiteLLM runs as a long-lived sidecar the summarize stage talks to.
+
+services:
+  download:
+    image: ghcr.io/jo-hoe/podcast-tldr-download:latest
+    volumes:
+      - "./config/download.yaml:/app/config/config.yaml:ro"
+      - "./volume/work:/app/mount/work"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+
+  transcribe:
+    image: ghcr.io/jo-hoe/podcast-tldr-transcribe:latest
+    volumes:
+      - "./config/transcribe.yaml:/app/config/config.yaml:ro"
+      - "./volume/work:/app/mount/work"
+      - "./volume/models:/app/mount/models"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+    depends_on:
+      download:
+        condition: service_completed_successfully
+
+  summarize:
+    image: ghcr.io/jo-hoe/podcast-tldr-summarize:latest
+    volumes:
+      - "./config/summarize.yaml:/app/config/config.yaml:ro"
+      - "./config/prompt.txt:/app/config/prompt.txt:ro"
+      - "./volume/work:/app/mount/work"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+      # Not required: config/summarize.yaml points at the keyless ai-proxy. Only
+      # set this if you switch baseURL to the litellm sidecar with a master key.
+      LITELLM_API_KEY: "${LITELLM_API_KEY:-none}"
+    depends_on:
+      transcribe:
+        condition: service_completed_successfully
+
+  zip:
+    image: ghcr.io/jo-hoe/podcast-tldr-zip:latest
+    volumes:
+      - "./config/zip.yaml:/app/config/config.yaml:ro"
+      - "./volume/work:/app/mount/work"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+    depends_on:
+      summarize:
+        condition: service_completed_successfully
+
+  backup:
+    image: ghcr.io/jo-hoe/podcast-tldr-backup:latest
+    volumes:
+      - "./config/backup.yaml:/app/config/config.yaml:ro"
+      - "./volume/work:/app/mount/work"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+      PODCAST_TLDR_BACKUP_TOKEN: "${PODCAST_TLDR_BACKUP_TOKEN:-}"
+    depends_on:
+      zip:
+        condition: service_completed_successfully
+
+  # OpenAI-compatible LLM gateway. The summarize stage points its baseURL here.
+  # Provide backend credentials via environment and mount your own litellm config.
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    ports:
+      - "4000:4000"
+    volumes:
+      - "./litellm/config.yaml:/app/config.yaml:ro"
+    environment:
+      # Backend provider key(s) referenced by litellm/config.yaml.
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"

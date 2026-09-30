@@ -1,0 +1,7 @@
+logLevel: info
+workDir: /app/mount/work
+repoURL: https://github.com/jo-hoe/podcast-tldr-archive.git
+tokenEnv: PODCAST_TLDR_BACKUP_TOKEN
+branch: main
+authorName: podcast-tldr-bot
+authorEmail: podcast-tldr-bot@users.noreply.github.com

@@ -1,0 +1,26 @@
+# Shared persistent volumes for the pipeline. The work PVC must be ReadWriteMany
+# so every stage can read the artifacts the previous stage wrote. On k3d the
+# local-path provisioner is ReadWriteOnce; for a real multi-node run use an RWX
+# storage class (NFS, Longhorn, etc.). On single-node k3d, RWO works because all
+# pods land on the same node.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: podcast-tldr-work
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: podcast-tldr-models
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

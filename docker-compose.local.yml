@@ -1,0 +1,14 @@
+# Local run override: use the images built from the sibling repos (podcast-tldr-*:local)
+# instead of the not-yet-published ghcr.io images. Used only for local end-to-end runs:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up --abort-on-container-exit
+services:
+  download:
+    image: podcast-tldr-download:local
+  transcribe:
+    image: podcast-tldr-transcribe:local
+  summarize:
+    image: podcast-tldr-summarize:local
+  zip:
+    image: podcast-tldr-zip:local
+  backup:
+    image: podcast-tldr-backup:local

@@ -1,0 +1,125 @@
+# Plain Kubernetes Jobs for the pipeline — an alternative to the Argo workflow for
+# clusters without Argo. Apply them in order (each stage reads what the previous
+# wrote to the shared work PVC), or use Argo (../argo) to orchestrate ordering
+# automatically. Prerequisites: 00-pvc, 01-configmap, 02-secrets, 03-litellm.
+#
+#   kubectl apply -f k8s/00-pvc.yaml -f k8s/01-configmap.yaml \
+#     -f k8s/02-secrets.example.yaml -f k8s/03-litellm.yaml
+#   kubectl apply -f k8s/10-jobs.yaml   # then watch each Job complete in order
+#
+# For strict sequencing without Argo, apply/wait one Job at a time:
+#   kubectl wait --for=condition=complete job/podcast-tldr-download --timeout=1h
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: podcast-tldr-download
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
+      containers:
+        - name: download
+          image: ghcr.io/jo-hoe/podcast-tldr-download:latest
+          env: [{ name: CONFIG_PATH, value: /app/config/download.yaml }]
+          volumeMounts:
+            - { name: work, mountPath: /app/mount/work }
+            - { name: config, mountPath: /app/config, readOnly: true }
+      volumes:
+        - { name: work, persistentVolumeClaim: { claimName: podcast-tldr-work } }
+        - { name: config, configMap: { name: podcast-tldr-config } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: podcast-tldr-transcribe
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: transcribe
+          image: ghcr.io/jo-hoe/podcast-tldr-transcribe:latest
+          env: [{ name: CONFIG_PATH, value: /app/config/transcribe.yaml }]
+          resources:
+            requests: { cpu: "500m", memory: 2Gi }
+            limits: { cpu: "2", memory: 4Gi }
+          volumeMounts:
+            - { name: work, mountPath: /app/mount/work }
+            - { name: models, mountPath: /app/mount/models }
+            - { name: config, mountPath: /app/config, readOnly: true }
+      volumes:
+        - { name: work, persistentVolumeClaim: { claimName: podcast-tldr-work } }
+        - { name: models, persistentVolumeClaim: { claimName: podcast-tldr-models } }
+        - { name: config, configMap: { name: podcast-tldr-config } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: podcast-tldr-summarize
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
+      containers:
+        - name: summarize
+          image: ghcr.io/jo-hoe/podcast-tldr-summarize:latest
+          env:
+            - { name: CONFIG_PATH, value: /app/config/summarize.yaml }
+            - name: LITELLM_API_KEY
+              valueFrom: { secretKeyRef: { name: podcast-tldr-secrets, key: litellmApiKey } }
+          volumeMounts:
+            - { name: work, mountPath: /app/mount/work }
+            - { name: config, mountPath: /app/config, readOnly: true }
+      volumes:
+        - { name: work, persistentVolumeClaim: { claimName: podcast-tldr-work } }
+        - { name: config, configMap: { name: podcast-tldr-config } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: podcast-tldr-zip
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
+      containers:
+        - name: zip
+          image: ghcr.io/jo-hoe/podcast-tldr-zip:latest
+          env: [{ name: CONFIG_PATH, value: /app/config/zip.yaml }]
+          volumeMounts:
+            - { name: work, mountPath: /app/mount/work }
+            - { name: config, mountPath: /app/config, readOnly: true }
+      volumes:
+        - { name: work, persistentVolumeClaim: { claimName: podcast-tldr-work } }
+        - { name: config, configMap: { name: podcast-tldr-config } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: podcast-tldr-backup
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
+      containers:
+        - name: backup
+          image: ghcr.io/jo-hoe/podcast-tldr-backup:latest
+          env:
+            - { name: CONFIG_PATH, value: /app/config/backup.yaml }
+            - name: PODCAST_TLDR_BACKUP_TOKEN
+              valueFrom: { secretKeyRef: { name: podcast-tldr-secrets, key: backupToken } }
+          volumeMounts:
+            - { name: work, mountPath: /app/mount/work }
+            - { name: config, mountPath: /app/config, readOnly: true }
+      volumes:
+        - { name: work, persistentVolumeClaim: { claimName: podcast-tldr-work } }
+        - { name: config, configMap: { name: podcast-tldr-config } }

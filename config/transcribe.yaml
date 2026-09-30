@@ -1,0 +1,7 @@
+logLevel: info
+workDir: /app/mount/work
+modelName: base
+modelCachePath: /app/mount/models
+device: cpu
+computeType: int8
+outputFormat: json
