@@ -1,7 +1,15 @@
 logLevel: info
 workDir: /app/mount/work
+# Model size: tiny, base, small, medium, large-v2, large-v3.
+# Larger models are more accurate but slower. large-v3 is best quality.
 modelName: base
 modelCachePath: /app/mount/models
+# device: cpu   → works everywhere; ~2 min/episode for a 45-min audio on a modern CPU.
+# device: cuda  → requires nvidia-container-toolkit + CUDA 12.x GPU; ~10-20x faster.
 device: cpu
+# computeType:
+#   int8       → fastest on CPU; minor accuracy trade-off.
+#   float16    → recommended for CUDA (native GPU precision).
+#   int8_float16 → good balance on CUDA if VRAM is limited.
 computeType: int8
 outputFormat: json

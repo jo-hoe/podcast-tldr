@@ -17,9 +17,13 @@ data:
   transcribe.yaml: |
     logLevel: info
     workDir: /app/mount/work
+    # Model size: tiny, base, small, medium, large-v2, large-v3.
     modelName: base
     modelCachePath: /app/mount/models
+    # device: cpu   → works everywhere (default)
+    # device: cuda  → requires GPU node + nvidia.com/gpu limit in the Job
     device: cpu
+    # computeType: int8 for CPU; float16 recommended for CUDA.
     computeType: int8
     outputFormat: json
   summarize.yaml: |

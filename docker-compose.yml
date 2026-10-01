@@ -25,6 +25,17 @@ services:
       - "./volume/models:/app/mount/models"
     environment:
       CONFIG_PATH: /app/config/config.yaml
+    # Request the NVIDIA GPU runtime when available. Requires:
+    #   - nvidia-container-toolkit installed on the host
+    #   - Docker daemon configured with the nvidia runtime
+    # Set device: cpu in config/transcribe.yaml to skip GPU use on hosts without one.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       download:
         condition: service_completed_successfully

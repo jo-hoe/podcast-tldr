@@ -18,3 +18,13 @@ registries:
     name: registry.localhost
     host: "0.0.0.0"
     hostPort: "5000"
+options:
+  k3s:
+    extraArgs:
+      # Pass NVIDIA GPU device plugin to the k3s agent node so Pods can request
+      # nvidia.com/gpu resources. Requires nvidia-container-toolkit on the host
+      # and the nvidia runtime registered with Docker/containerd.
+      # Remove if running without a GPU.
+      - arg: "--gpus=all"
+        nodeFilters:
+          - agent:0

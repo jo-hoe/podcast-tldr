@@ -46,6 +46,11 @@ spec:
           resources:
             requests: { cpu: "500m", memory: 2Gi }
             limits: { cpu: "2", memory: 4Gi }
+            # Uncomment to request a GPU (requires nvidia.com/gpu device plugin on the node
+            # and device: cuda + computeType: float16 in config/transcribe.yaml):
+            # limits:
+            #   nvidia.com/gpu: "1"
+            #   memory: 4Gi
           volumeMounts:
             - { name: work, mountPath: /app/mount/work }
             - { name: models, mountPath: /app/mount/models }
