@@ -165,20 +165,31 @@ The [`argo/`](./argo) `WorkflowTemplate` chains the stages as a DAG over the sha
 work PVC, with a configurable `parallelism` limit.
 
 ```bash
-make install-argo
-make deploy-argo-template
-make run-argo
+make install-argo           # install Argo + patch UI to no-auth mode (dev)
+make deploy-argo-template   # register the WorkflowTemplate
+make run-argo               # submit a run and watch it
+make argo-ui                # open the UI (http://localhost:2746, no login)
 ```
+
+> **Auth mode.** `make install-argo` patches the `argo-server` deployment to
+> `--auth-mode=client` (no login required) and `--secure=false` (plain HTTP).
+> This is intentional for local k3d development. **Do not use this setting in
+> production** — use `--auth-mode=sso` or `--auth-mode=server` with a proper
+> ingress and TLS instead.
 
 ### Local k3d Development Cluster
 
 Builds every stage image from the sibling repos, pushes to a local registry, and
-deploys the shared resources — mirroring the workflow of
-[video-to-podcast-service](https://github.com/jo-hoe/video-to-podcast-service).
+deploys the shared resources. The Argo UI is exposed directly at
+`http://localhost:2746` via the k3d load balancer (port defined in
+[`k3d/podcasttldrcluster.yaml`](./k3d/podcasttldrcluster.yaml)).
 
 ```bash
 make start-k3d          # create cluster + build/push all images + deploy
-# ... run the pipeline via `make run-jobs` or Argo ...
+make install-argo       # install Argo with no-auth UI for dev
+make deploy-argo-template
+make run-argo           # submit a pipeline run
+make argo-ui            # open http://localhost:2746
 make stop-k3d
 ```
 

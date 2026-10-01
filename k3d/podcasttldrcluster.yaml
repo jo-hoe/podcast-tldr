@@ -8,6 +8,9 @@ ports:
   - port: 4000:4000 # expose the LiteLLM proxy on the host loadbalancer
     nodeFilters:
       - loadbalancer
+  - port: 2746:2746 # expose the Argo Workflows UI on the host loadbalancer
+    nodeFilters:
+      - loadbalancer
 kubeAPI:
   # setting port and IP on Windows explicitly as the default k3d port can lead to
   # kubectl not being able to connect

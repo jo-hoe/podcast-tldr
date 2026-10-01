@@ -13,7 +13,8 @@ IMAGE_VERSION := 1.0.0
 
 .PHONY: start-compose
 start-compose: ## run the full pipeline locally via docker compose (pulls ghcr images)
-	docker-compose up --abort-on-container-exit
+	docker compose up -d download transcribe summarize zip backup
+	docker compose logs -f backup
 
 .PHONY: stop-compose
 stop-compose: ## stop and remove the compose pipeline
@@ -50,9 +51,25 @@ run-jobs: ## run the pipeline as plain sequential k8s Jobs
 	@kubectl apply -f ${ROOT_DIR}k8s/10-jobs.yaml
 
 .PHONY: install-argo
-install-argo: ## install Argo Workflows into the cluster
+install-argo: ## install Argo Workflows into the cluster (UI auth disabled for dev)
 	@kubectl create namespace argo || true
 	@kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/latest/download/quick-start-minimal.yaml
+	@echo "Patching argo-server to use --auth-mode=client (no login required for dev)..."
+	@kubectl patch deployment argo-server -n argo \
+		--type='json' \
+		-p='[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["server","--auth-mode=client","--secure=false"]}]'
+	@kubectl rollout status deployment/argo-server -n argo --timeout=120s
+	@echo "Argo UI available at http://localhost:2746 (no login required)"
+
+.PHONY: argo-ui
+argo-ui: ## open the Argo Workflows UI in the browser (k3d: direct; other clusters: port-forward)
+	@if kubectl config current-context 2>/dev/null | grep -q k3d; then \
+		echo "Argo UI: http://localhost:2746"; \
+		open http://localhost:2746 2>/dev/null || xdg-open http://localhost:2746 2>/dev/null || start http://localhost:2746 2>/dev/null || true; \
+	else \
+		echo "Port-forwarding Argo UI to http://localhost:2746 (Ctrl-C to stop)..."; \
+		kubectl port-forward -n argo svc/argo-server 2746:2746; \
+	fi
 
 .PHONY: deploy-argo-template
 deploy-argo-template: ## register the podcast-tldr Argo WorkflowTemplate
