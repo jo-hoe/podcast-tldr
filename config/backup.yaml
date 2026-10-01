@@ -1,6 +1,8 @@
 logLevel: info
 workDir: /app/mount/work
-repoURL: https://github.com/jo-hoe/media-archive.git
+# URL of the private git repository that receives the podcast archive.
+# Replace with your own private repo.
+repoURL: https://github.com/your-org/your-media-archive.git
 tokenEnv: PODCAST_TLDR_BACKUP_TOKEN
 branch: main
 authorName: podcast-tldr-bot

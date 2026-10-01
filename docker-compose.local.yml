@@ -1,6 +1,20 @@
-# Local run override: use the images built from the sibling repos (podcast-tldr-*:local)
-# instead of the not-yet-published ghcr.io images. Used only for local end-to-end runs:
-#   docker compose -f docker-compose.yml -f docker-compose.local.yml up --abort-on-container-exit
+# Local run override: swap ghcr.io images for locally built ones.
+#
+# Usage (run from the orchestrator repo root):
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d \
+#     download transcribe summarize zip backup
+#
+# Build the stage images first:
+#   for stage in rss-audio-downloader whisper-transcriber llm-summarizer artifact-zipper git-archive-backup; do
+#     docker build -t "${stage}:local" "../${stage}"
+#   done
+#
+# Personal config overrides:
+#   The committed config/*.yaml files are safe generic examples. Copy any to
+#   config/*.local.yaml and edit there (gitignored, never committed). To mount
+#   them instead of the defaults, add a third override file that maps the
+#   .local.yaml paths into each service's /app/config/config.yaml volume.
+
 services:
   download:
     image: rss-audio-downloader:local

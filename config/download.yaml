@@ -2,7 +2,19 @@ logLevel: info
 workDir: /app/mount/work
 maxParallelDownloads: 4
 feeds:
-  - url: https://podcasts.files.bbci.co.uk/p0my6g8q.rss
+  # Replace with your feed's RSS URL. Add more feeds as needed.
+  - url: https://feeds.megaphone.fm/sciencevs
     selector:
+      # Episodes are indexed chronologically (episode 1 = first/oldest ever published).
+      # startEpisode and endEpisode define an inclusive window; omit either for open-ended.
+      # Example: startEpisode: 1, endEpisode: 1    →  first episode only
+      # Example: startEpisode: 1, endEpisode: 10   →  first 10 episodes
+      # Example: startEpisode: 340, endEpisode: 342 →  three specific mid-run episodes
       startEpisode: 1
       endEpisode: 1
+      # Optionally restrict by publish date (RFC3339, each bound is optional):
+      # startDate: 2026-01-01T00:00:00Z
+      # endDate:   2026-12-31T23:59:59Z
+      # Optionally restrict by title regex (Go regexp syntax):
+      # nameRegex: "(?i)bread"
+      # All active rules combine with AND; omit a rule to leave that dimension unconstrained.

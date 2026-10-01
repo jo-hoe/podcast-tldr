@@ -31,72 +31,108 @@ and writes the manifest back.
 
 ## Quickstart
 
-Run the whole pipeline locally with Docker Compose. You need Docker, the `gh` CLI
-(for the backup token), and the five stage repos checked out as siblings under `../`
-(only if you want to build images locally — otherwise the published `ghcr.io` images
-are pulled for you).
+Run the whole pipeline locally with Docker Compose. You need Docker and the `gh` CLI
+(for the backup token). The published `ghcr.io` images are pulled automatically; no
+local builds are required for a first run.
 
 ```bash
-# 1. Point the pipeline at the episode(s) you want (see Example configuration below).
-$EDITOR config/download.yaml
+# 1. Create your personal config overrides (gitignored — never committed).
+cp config/download.yaml config/download.local.yaml
+cp config/backup.yaml   config/backup.local.yaml
 
-# 2. Backup pushes to your private archive repo. Reuse the gh CLI token (repo scope)
-#    or export a dedicated PAT. Summarization uses the keyless ai-proxy, so no LLM key.
-export PODCAST_TLDR_BACKUP_TOKEN="$(gh auth token)"
+# 2. Edit your feed URL + episode selector.
+$EDITOR config/download.local.yaml   # set url: and selector: (see Example configuration)
 
-# 3. Run all five stages in order on a shared ./volume/work.
-docker compose up -d      # download -> transcribe -> summarize -> zip -> backup
-
-# 4. Watch it run; the chain is sequenced, so wait on the last stage.
-docker compose logs -f backup
-
-# 5. Your report + bundle are committed to the private archive repo under
-#    podcasts/<show>/<episode>/{summary.md,bundle.zip}, and ./volume/work holds
-#    the intermediate artifacts (audio/, transcripts/, summaries/, bundles/).
+# 3. Set your private archive repo and point the pipeline at your local configs.
+$EDITOR config/backup.local.yaml     # set repoURL: https://github.com/you/your-archive.git
 ```
 
-> **Running locally built images.** To use images built from the sibling repos
-> instead of `ghcr.io`, add the override file:
-> `docker compose -f docker-compose.yml -f docker-compose.local.yml up -d`.
-> Build them first with `make build-and-push` (k3d) or `docker build` per repo.
+Then export the backup token and start the pipeline:
 
-> **Note.** Don't use `--abort-on-container-exit` with this compose file — the stages
-> are a sequential `depends_on` chain, and that flag tears down the whole run the
-> moment the first stage exits. Run detached (`-d`) and follow the `backup` logs.
+```bash
+export PODCAST_TLDR_BACKUP_TOKEN="$(gh auth token)"
+
+# Use ghcr.io images (default) — or add -f docker-compose.local.yml for locally built ones.
+docker compose up -d download transcribe summarize zip backup
+
+# Watch the run — stages sequence automatically; follow the last stage.
+docker compose logs -f backup
+```
+
+When it completes, your reports + bundles are committed to the private archive repo
+under `podcasts/<show>/<episode>/{summary.md,bundle.zip}`. Intermediate artifacts
+(audio, transcripts, summaries, bundles) land in `./volume/work`.
+
+> **Config override pattern.** The committed `config/*.yaml` files are safe generic
+> examples — they are safe to commit because they contain no secrets or personal data.
+> For your real feed URL, archive repo, and other personal values, copy the relevant
+> file to `config/*.local.yaml` and edit there. Those files are gitignored and will
+> never be committed. To make the containers pick them up, either edit
+> `config/*.yaml` directly (fine for a one-off run) or create a compose override
+> file that remounts the `.local.yaml` paths — see the comment in
+> [docker-compose.local.yml](./docker-compose.local.yml).
+
+> **Note.** Don't use `--abort-on-container-exit` — the stages are a sequential
+> `depends_on` chain and that flag tears everything down the moment the first stage
+> exits. Always run detached (`-d`) and follow `backup` logs.
 
 ## Example configuration
 
-Each stage reads one small YAML file from [`config/`](./config). The only file you
-normally edit is `config/download.yaml` — which feed(s) to pull and which episodes:
+Each stage reads one small YAML file from [`config/`](./config). The committed files
+are safe generic examples — copy any to `config/*.local.yaml` for your real values
+(gitignored, never committed).
+
+### Feed selector (`config/download.yaml`)
+
+The `selector` block defines a **window** of episodes to fetch from a feed. Episodes
+are indexed **newest-first** (index 1 = most recent). All rules combine with AND;
+omit a rule to leave that dimension unconstrained.
 
 ```yaml
-# config/download.yaml — what to fetch.
+# config/download.yaml
 logLevel: info
-workDir: /app/mount/work        # shared work dir (mounted); leave as-is
+workDir: /app/mount/work   # shared mount; leave as-is
 maxParallelDownloads: 4
 feeds:
-  - url: https://podcasts.files.bbci.co.uk/p0my6g8q.rss   # the RSS feed
+  - url: https://feeds.megaphone.fm/sciencevs   # RSS feed URL
     selector:
-      # Episodes are newest-first. Pick ONE selection style:
-      startEpisode: 1           # index range (1 = latest). Here: just the latest.
-      endEpisode: 1
-      # startDate: 2026-01-01   # …or a publish-date window (RFC3339), each optional
-      # endDate:   2026-12-31
-      # nameRegex: "(?i)series 5"   # …or a title regex. Empty = all episodes.
+      # Episodes are indexed chronologically (episode 1 = first/oldest ever published).
+      # startEpisode and endEpisode define an inclusive window; omit either for open-ended.
+      startEpisode: 1    # episode 1 = the very first episode of the podcast
+      endEpisode: 1      # same → fetch only the single first episode
+      # startEpisode: 1, endEpisode: 10    →  first 10 episodes ever published
+      # startEpisode: 340, endEpisode: 342 →  three specific mid-run episodes
+      # omit both                          →  all episodes
+
+      # --- Publish-date window (RFC3339, each bound optional) ---
+      # startDate: 2026-01-01T00:00:00Z
+      # endDate:   2026-12-31T23:59:59Z
+
+      # --- Title filter (Go regexp, optional) ---
+      # nameRegex: "(?i)series 5"
+
+  # Add more feeds as needed:
+  # - url: https://podcasts.files.bbci.co.uk/p0my6g8q.rss
+  #   selector:
+  #     startEpisode: 1
+  #     endEpisode: 5
 ```
+
+### Other stage configs
 
 The other stage configs work out of the box; tune them only if you need to:
 
 | File | Key knobs |
 |------|-----------|
-| [`config/transcribe.yaml`](./config/transcribe.yaml) | `modelName` (`base`/`small`/…), `device` (`cpu`/`cuda`), `computeType` |
-| [`config/summarize.yaml`](./config/summarize.yaml) | `baseURL`, `model` (`gpt-5`), `reasoningModel`, `maxTokens` |
-| [`config/prompt.txt`](./config/prompt.txt) | the report instructions (metadata-aware, error-correcting) |
-| [`config/backup.yaml`](./config/backup.yaml) | `repoURL` (your archive repo), `branch`, `authorName`/`authorEmail` |
+| [`config/transcribe.yaml`](./config/transcribe.yaml) | `modelName` (`base`/`small`/`medium`/`large-v3`), `device` (`cpu`/`cuda`), `computeType` (`int8`/`float16`) |
+| [`config/summarize.yaml`](./config/summarize.yaml) | `baseURL` (LLM endpoint), `model`, `reasoningModel` (omits temperature, uses `max_completion_tokens`), `maxTokens` |
+| [`config/prompt.txt`](./config/prompt.txt) | Report instructions — metadata-aware, silently corrects mistranscriptions, outputs outline + takeaways + suggestions |
+| [`config/backup.yaml`](./config/backup.yaml) | `repoURL` (your private archive repo), `tokenEnv`, `branch`, `authorName`/`authorEmail` |
 
-To route summarization through your own LLM instead of the keyless ai-proxy, point
-`config/summarize.yaml`'s `baseURL` at the bundled LiteLLM sidecar
-(`http://litellm:4000/v1`) and configure the model in
+Summarization talks to the keyless [ai-proxy](https://github.com/jo-hoe/ai-proxy)
+by default (`config/summarize.yaml` → `baseURL: https://ai-proxy.johoe.duckdns.org/openai/v1`,
+model `gpt-5`) — no LLM key needed. To use your own model, point `baseURL` at the
+bundled LiteLLM sidecar (`http://litellm:4000/v1`) and configure it in
 [`litellm/config.yaml`](./litellm/config.yaml).
 
 ## Deployment Options

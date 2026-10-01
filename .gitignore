@@ -6,6 +6,10 @@ k8s/02-secrets.yaml
 *.env
 .env
 
+# Personal config overrides (copy config/*.yaml → config/*.local.yaml, etc. and edit there)
+config/*.local.yaml
+config/*.local.txt
+
 # Claude Code session state
 .claude/
 
