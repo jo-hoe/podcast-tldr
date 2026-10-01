@@ -104,6 +104,9 @@ feeds:
       # startEpisode: 340, endEpisode: 342 →  three specific mid-run episodes
       # omit both                          →  all episodes
 
+      # To get recent episodes, a date window is more practical than a high index:
+      # startDate: 2026-09-01T00:00:00Z    →  everything published since Sep 2026
+
       # --- Publish-date window (RFC3339, each bound optional) ---
       # startDate: 2026-01-01T00:00:00Z
       # endDate:   2026-12-31T23:59:59Z
