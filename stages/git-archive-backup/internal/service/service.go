@@ -32,9 +32,9 @@ func New(cfg *config.Config, opener Opener) *Service {
 	return &Service{cfg: cfg, opener: opener}
 }
 
-// Run backs up every not-yet-backed-up episode that has a bundle. It returns an
-// error for failures that abort the whole stage (loading the manifest, opening or
-// pushing the repo, saving the manifest). Per-episode file problems are logged.
+// Run backs up every not-yet-backed-up episode that has a bundle. Each episode
+// is committed and pushed individually so the archive is updated incrementally —
+// a crash or interruption leaves already-processed episodes safely in the remote.
 func (s *Service) Run() error {
 	m, err := manifest.Load(s.cfg.WorkDir)
 	if err != nil {
@@ -51,27 +51,7 @@ func (s *Service) Run() error {
 		return fmt.Errorf("failed to open archive repository: %w", err)
 	}
 
-	staged := s.stageEpisodes(m, repo)
-	if staged == 0 {
-		slog.Info("no new episodes to back up")
-		return nil
-	}
-
-	if err := s.commitAndPush(repo, staged); err != nil {
-		return err
-	}
-
-	if err := m.Save(s.cfg.WorkDir); err != nil {
-		return fmt.Errorf("failed to save manifest: %w", err)
-	}
-	slog.Info("backup stage complete", "episodes", staged)
-	return nil
-}
-
-// stageEpisodes copies each eligible episode's artifacts into the repo and marks
-// it backed up in the manifest. It returns the number of episodes staged.
-func (s *Service) stageEpisodes(m *manifest.Manifest, repo gitrepo.Repository) int {
-	staged := 0
+	backed := 0
 	for pi := range m.Podcasts {
 		podcast := &m.Podcasts[pi]
 		for ei := range podcast.Episodes {
@@ -79,15 +59,41 @@ func (s *Service) stageEpisodes(m *manifest.Manifest, repo gitrepo.Repository) i
 			if !s.eligible(ep) {
 				continue
 			}
-			if err := s.stageEpisode(repo, podcast.ShowTitle, ep); err != nil {
+			if err := s.backupEpisode(repo, podcast.ShowTitle, ep, m); err != nil {
 				slog.Error("skipping episode", "id", ep.ID, "err", err)
 				continue
 			}
-			ep.BackedUp = true
-			staged++
+			backed++
 		}
 	}
-	return staged
+
+	if backed == 0 {
+		slog.Info("no new episodes to back up")
+	} else {
+		slog.Info("backup stage complete", "episodes", backed)
+	}
+	return nil
+}
+
+// backupEpisode stages, commits, pushes, marks backed-up, and saves the manifest
+// for a single episode. Any error aborts the episode but leaves the repo clean.
+func (s *Service) backupEpisode(repo gitrepo.Repository, showTitle string, ep *manifest.Episode, m *manifest.Manifest) error {
+	if err := s.stageEpisode(repo, showTitle, ep); err != nil {
+		return err
+	}
+
+	msg := fmt.Sprintf("Back up episode: %s", ep.ID)
+	if err := s.commitAndPush(repo, msg); err != nil {
+		return err
+	}
+
+	ep.BackedUp = true
+	if err := m.Save(s.cfg.WorkDir); err != nil {
+		// Non-fatal: the episode is in the archive; worst case it gets backed up
+		// again on the next run (idempotent — same content, duplicate commit).
+		slog.Warn("backed up but failed to save manifest", "id", ep.ID, "err", err)
+	}
+	return nil
 }
 
 // eligible reports whether an episode should be backed up: it must have a bundle
@@ -120,8 +126,7 @@ func (s *Service) stageEpisode(repo gitrepo.Repository, showTitle string, ep *ma
 	return nil
 }
 
-func (s *Service) commitAndPush(repo gitrepo.Repository, staged int) error {
-	msg := fmt.Sprintf("Back up %d podcast episode(s)", staged)
+func (s *Service) commitAndPush(repo gitrepo.Repository, msg string) error {
 	err := repo.Commit(msg, gitrepo.Author{Name: s.cfg.AuthorName, Email: s.cfg.AuthorEmail})
 	if errors.Is(err, gitrepo.ErrNothingToCommit) {
 		slog.Info("archive already up to date, nothing to commit")

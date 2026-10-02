@@ -106,6 +106,9 @@ func TestRun_StagesBundleAndSummary(t *testing.T) {
 	if len(fake.commits) != 1 {
 		t.Fatalf("expected 1 commit, got %d", len(fake.commits))
 	}
+	if fake.commits[0] != "Back up episode: ep-001" {
+		t.Errorf("unexpected commit message: %q", fake.commits[0])
+	}
 	if fake.author.Name != "Tester" || fake.author.Email != "tester@example.com" {
 		t.Errorf("unexpected commit author: %+v", fake.author)
 	}
@@ -210,5 +213,40 @@ func TestRun_ReturnsErrorWhenOpenerFails(t *testing.T) {
 	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return nil, sentinel })
 	if err := svc.Run(); !errors.Is(err, sentinel) {
 		t.Fatalf("expected opener error to propagate, got %v", err)
+	}
+}
+
+func TestRun_CommitsAndPushesPerEpisode(t *testing.T) {
+	// Two episodes in the same podcast — each should get its own commit and push.
+	m := &manifest.Manifest{
+		Podcasts: []manifest.Podcast{{
+			ShowTitle: "My Show",
+			Episodes: []manifest.Episode{
+				{ID: "ep-001", Title: "First", BundleFile: "bundles/ep-001.zip"},
+				{ID: "ep-002", Title: "Second", BundleFile: "bundles/ep-002.zip"},
+			},
+		}},
+	}
+	cfg, fake := setup(t, m, map[string]string{
+		"bundles/ep-001.zip": "ZIP1",
+		"bundles/ep-002.zip": "ZIP2",
+	})
+
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	if err := svc.Run(); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(fake.commits) != 2 {
+		t.Fatalf("expected 2 commits (one per episode), got %d: %v", len(fake.commits), fake.commits)
+	}
+	if fake.commits[0] != "Back up episode: ep-001" {
+		t.Errorf("unexpected first commit message: %q", fake.commits[0])
+	}
+	if fake.commits[1] != "Back up episode: ep-002" {
+		t.Errorf("unexpected second commit message: %q", fake.commits[1])
+	}
+	if fake.pushed != 2 {
+		t.Errorf("expected 2 pushes (one per episode), got %d", fake.pushed)
 	}
 }
