@@ -19,6 +19,10 @@ import (
 // EnvConfigPath is the environment variable that overrides the config file path.
 const EnvConfigPath = "CONFIG_PATH"
 
+// EnvRepoURL is the environment variable that overrides the repoURL config field.
+// Set this in k8s via a Secret so the archive repo URL never lands in a ConfigMap.
+const EnvRepoURL = "PODCAST_TLDR_BACKUP_REPO"
+
 // Default values applied when the corresponding config field is empty.
 const (
 	defaultBranch      = "main"
@@ -113,6 +117,11 @@ func setDefaults(cfg *Config) {
 	}
 	if strings.TrimSpace(cfg.CheckoutDir) == "" {
 		cfg.CheckoutDir = filepath.Join(cfg.WorkDir, defaultCheckoutRel)
+	}
+	// Allow PODCAST_TLDR_BACKUP_REPO env var to override repoURL so the archive
+	// repo URL can be injected via a k8s Secret without landing in the ConfigMap.
+	if envRepo := strings.TrimSpace(os.Getenv(EnvRepoURL)); envRepo != "" {
+		cfg.RepoURL = envRepo
 	}
 }
 

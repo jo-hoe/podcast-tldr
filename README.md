@@ -155,12 +155,15 @@ An optional LiteLLM sidecar is included if you prefer to route through it instea
 ### Kubernetes — plain Jobs
 
 ```bash
-kubectl apply -f k8s/00-pvc.yaml -f k8s/01-configmap.yaml
-# Summarize uses the keyless ai-proxy, so only the backup token is required.
-kubectl create secret generic podcast-tldr-secrets \
-  --from-literal=litellmApiKey="none" \
-  --from-literal=backupToken="$(gh auth token)"
-make run-jobs           # applies k8s/10-jobs.yaml (apply/wait in order)
+# Deploy shared resources using ghcr.io images (any cluster):
+make deploy-plain
+
+# Create the pipeline secret (archive repo URL stays out of ConfigMaps):
+export PODCAST_TLDR_BACKUP_REPO=https://github.com/you/your-archive.git
+make create-secret   # uses gh auth token for backupToken by default
+
+# Run the five stages in order:
+make run-jobs        # applies k8s/10-jobs.yaml; wait for each Job to complete
 ```
 
 ### Kubernetes — Argo Workflows
@@ -181,19 +184,27 @@ make argo-ui                # open the UI (http://localhost:2746, no login)
 > production** — use `--auth-mode=sso` or `--auth-mode=server` with a proper
 > ingress and TLS instead.
 
+> **Archive repo URL.** The backup stage reads `PODCAST_TLDR_BACKUP_REPO` from
+> the `podcast-tldr-secrets` Secret (not the ConfigMap) so the URL never lands
+> in a committed manifest. Set it via `make create-secret` or
+> `kubectl create secret generic podcast-tldr-secrets --from-literal=backupRepoURL=...`.
+
 ### Local k3d Development Cluster
 
-Builds every stage image from the sibling repos, pushes to a local registry, and
-deploys the shared resources. The Argo UI is exposed directly at
-`http://localhost:2746` via the k3d load balancer (port defined in
-[`k3d/podcasttldrcluster.yaml`](./k3d/podcasttldrcluster.yaml)).
+Builds every stage image from `stages/`, pushes to the local k3d registry
+(`localhost:5000`), deploys all resources via a [Kustomize overlay](./k8s/overlays/k3d)
+that rewrites image refs to `localhost:5000/<stage>:1.0.0`, and installs Argo with
+the UI exposed at `http://localhost:2746` (no login required).
 
 ```bash
-make start-k3d          # create cluster + build/push all images + deploy
-make install-argo       # install Argo with no-auth UI for dev
-make deploy-argo-template
-make run-argo           # submit a pipeline run
-make argo-ui            # open http://localhost:2746
+make start-k3d      # create cluster + build/push images + deploy + install Argo
+
+# Create the secret with your archive repo URL:
+export PODCAST_TLDR_BACKUP_REPO=https://github.com/you/your-archive.git
+make create-secret
+
+make run-argo       # submit a pipeline run (or: make run-jobs for plain Jobs)
+make argo-ui        # open http://localhost:2746
 make stop-k3d
 ```
 

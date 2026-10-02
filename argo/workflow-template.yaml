@@ -102,6 +102,9 @@ spec:
           - name: PODCAST_TLDR_BACKUP_TOKEN
             valueFrom:
               secretKeyRef: { name: podcast-tldr-secrets, key: backupToken }
+          - name: PODCAST_TLDR_BACKUP_REPO
+            valueFrom:
+              secretKeyRef: { name: podcast-tldr-secrets, key: backupRepoURL }
         volumeMounts:
           - { name: work, mountPath: /app/mount/work }
           - { name: config, mountPath: /app/config, readOnly: true }

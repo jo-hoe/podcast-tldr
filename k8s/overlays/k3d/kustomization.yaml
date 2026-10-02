@@ -1,0 +1,37 @@
+# k8s/overlays/k3d/kustomization.yaml
+#
+# Kustomize overlay for local k3d development.
+# Rewrites ghcr.io image references to the local registry so Jobs and the Argo
+# WorkflowTemplate use locally built images instead of published ghcr.io ones.
+#
+# Usage:
+#   kubectl apply -k k8s/overlays/k3d
+#
+# Build images first:
+#   make build-and-push   (pushes to localhost:5000/<stage>:1.0.0)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../00-pvc.yaml
+  - ../../01-configmap.yaml
+  - ../../03-litellm.yaml
+  - ../../10-jobs.yaml
+  - ../../../argo/workflow-template.yaml
+
+images:
+  - name: ghcr.io/jo-hoe/podcast-tldr/rss-audio-downloader
+    newName: localhost:5000/rss-audio-downloader
+    newTag: "1.0.0"
+  - name: ghcr.io/jo-hoe/podcast-tldr/whisper-transcriber
+    newName: localhost:5000/whisper-transcriber
+    newTag: "1.0.0"
+  - name: ghcr.io/jo-hoe/podcast-tldr/llm-summarizer
+    newName: localhost:5000/llm-summarizer
+    newTag: "1.0.0"
+  - name: ghcr.io/jo-hoe/podcast-tldr/artifact-zipper
+    newName: localhost:5000/artifact-zipper
+    newTag: "1.0.0"
+  - name: ghcr.io/jo-hoe/podcast-tldr/git-archive-backup
+    newName: localhost:5000/git-archive-backup
+    newTag: "1.0.0"

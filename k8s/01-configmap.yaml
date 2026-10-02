@@ -82,7 +82,9 @@ data:
   backup.yaml: |
     logLevel: info
     workDir: /app/mount/work
-    repoURL: https://github.com/jo-hoe/media-archive.git
+    # repoURL is overridden at runtime by the PODCAST_TLDR_BACKUP_REPO env var
+    # injected from the podcast-tldr-secrets Secret — never put a real URL here.
+    repoURL: ""
     tokenEnv: PODCAST_TLDR_BACKUP_TOKEN
     branch: main
     authorName: podcast-tldr-bot
