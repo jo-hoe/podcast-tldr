@@ -26,6 +26,14 @@ def _make_audio(work_dir: Path, rel: str) -> None:
     path.write_bytes(b"fake-audio")
 
 
+def _svc(work_dir: Path, fake, *, workers: int = 1) -> TranscribeService:
+    """Helper: build a TranscribeService with a factory that always returns ``fake``."""
+    return TranscribeService(
+        Config(work_dir=str(work_dir), max_parallel_episodes=workers),
+        lambda: fake,
+    )
+
+
 def test_run_transcribes_and_updates_manifest(tmp_path: Path) -> None:
     _seed(
         tmp_path,
@@ -38,7 +46,7 @@ def test_run_transcribes_and_updates_manifest(tmp_path: Path) -> None:
     _make_audio(tmp_path, "audio/ep-2.mp3")
 
     fake = FakeTranscriber()
-    TranscribeService(Config(work_dir=str(tmp_path)), fake).run()
+    _svc(tmp_path, fake).run()
 
     assert len(fake.calls) == 2
 
@@ -71,7 +79,7 @@ def test_run_skips_episode_without_audio(tmp_path: Path) -> None:
     _make_audio(tmp_path, "audio/has-audio.mp3")
 
     fake = FakeTranscriber()
-    TranscribeService(Config(work_dir=str(tmp_path)), fake).run()
+    _svc(tmp_path, fake).run()
 
     assert fake.calls == [str(tmp_path / "audio" / "has-audio.mp3")]
     assert not (tmp_path / "transcripts" / "no-audio.json").exists()
@@ -82,7 +90,7 @@ def test_run_skips_episode_with_missing_audio_file(tmp_path: Path) -> None:
     # deliberately do not create the audio file
 
     fake = FakeTranscriber()
-    TranscribeService(Config(work_dir=str(tmp_path)), fake).run()
+    _svc(tmp_path, fake).run()
 
     assert fake.calls == []
     assert not (tmp_path / "transcripts" / "ghost.json").exists()
@@ -92,7 +100,7 @@ def test_run_isolates_per_episode_failure(tmp_path: Path) -> None:
     _seed(tmp_path, [{"id": "boom", "title": "B", "audioFile": "audio/boom.mp3"}])
     _make_audio(tmp_path, "audio/boom.mp3")
 
-    TranscribeService(Config(work_dir=str(tmp_path)), FailingTranscriber()).run()
+    _svc(tmp_path, FailingTranscriber()).run()
 
     # manifest still written, no transcript, no transcribe fields set
     reloaded = yaml.safe_load(
@@ -101,3 +109,21 @@ def test_run_isolates_per_episode_failure(tmp_path: Path) -> None:
     ep = reloaded["podcasts"][0]["episodes"][0]
     assert "transcriptFile" not in ep
     assert not (tmp_path / "transcripts" / "boom.json").exists()
+
+
+def test_run_parallel_transcribes_all_episodes(tmp_path: Path) -> None:
+    """maxParallelEpisodes > 1 should still transcribe all episodes correctly."""
+    _seed(
+        tmp_path,
+        [{"id": f"ep-{i}", "title": f"Ep {i}", "audioFile": f"audio/ep-{i}.mp3"}
+         for i in range(4)],
+    )
+    for i in range(4):
+        _make_audio(tmp_path, f"audio/ep-{i}.mp3")
+
+    fake = FakeTranscriber()
+    _svc(tmp_path, fake, workers=2).run()
+
+    assert len(fake.calls) == 4
+    for i in range(4):
+        assert (tmp_path / "transcripts" / f"ep-{i}.json").exists()

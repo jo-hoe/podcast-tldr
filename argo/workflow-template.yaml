@@ -2,23 +2,27 @@
 #
 # All stages share one ReadWriteMany PVC (`podcast-tldr-work`) mounted at
 # /app/mount/work, so each stage reads the episodes.yaml the previous stage wrote.
-# The DAG enforces ordering; `parallelism` bounds how many stages/steps Argo runs
-# at once (per the requirement that steps may run in parallel with configurable
-# limits — raise it when fanning out multiple feeds/episodes).
+# The DAG enforces ordering.
 #
-# Prerequisites (apply once): the work PVC and the LiteLLM Deployment/Service and
-# the backup token Secret from ./k8s.
+# Configurable parameters:
+#   workPvc              — name of the shared work PVC (default: podcast-tldr-work)
+#   maxParallelEpisodes  — how many episodes the transcribe stage processes in parallel
+#                          (default: 1; raise to 2-4 on a multi-core CPU host)
+#
+# Prerequisites (apply once): the work PVC, ConfigMap, Secret, and LiteLLM
+# Deployment from ./k8s.
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
   name: podcast-tldr
 spec:
   entrypoint: pipeline
-  parallelism: 2
   arguments:
     parameters:
       - name: workPvc
         value: podcast-tldr-work
+      - name: maxParallelEpisodes
+        value: "1"
   volumes:
     - name: work
       persistentVolumeClaim:
@@ -39,6 +43,10 @@ spec:
           - name: transcribe
             template: stage-transcribe
             dependencies: [download]
+            arguments:
+              parameters:
+                - name: maxParallelEpisodes
+                  value: "{{workflow.parameters.maxParallelEpisodes}}"
           - name: summarize
             template: stage-summarize
             dependencies: [transcribe]
@@ -60,11 +68,17 @@ spec:
           - { name: config, mountPath: /app/config, readOnly: true }
 
     - name: stage-transcribe
+      inputs:
+        parameters:
+          - name: maxParallelEpisodes
       container:
         image: ghcr.io/jo-hoe/podcast-tldr/whisper-transcriber:latest
         env:
           - name: CONFIG_PATH
             value: /app/config/transcribe.yaml
+          # Override parallelism at runtime without changing the ConfigMap.
+          - name: WHISPER_MAX_PARALLEL_EPISODES
+            value: "{{inputs.parameters.maxParallelEpisodes}}"
         volumeMounts:
           - { name: work, mountPath: /app/mount/work }
           - { name: models, mountPath: /app/mount/models }

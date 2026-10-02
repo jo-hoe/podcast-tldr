@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         config.compute_type,
     )
 
-    service = TranscribeService(config, FasterWhisperTranscriber(config))
+    service = TranscribeService(config, lambda: FasterWhisperTranscriber(config))
     try:
         service.run()
     except ManifestError as exc:

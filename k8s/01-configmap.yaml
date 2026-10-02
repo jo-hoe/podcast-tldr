@@ -26,6 +26,8 @@ data:
     # computeType: int8 for CPU; float16 recommended for CUDA.
     computeType: int8
     outputFormat: json
+    # maxParallelEpisodes: concurrent transcriptions (1=sequential, sensible max=4 on CPU).
+    maxParallelEpisodes: 1
   summarize.yaml: |
     logLevel: info
     workDir: /app/mount/work

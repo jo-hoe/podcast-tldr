@@ -1,5 +1,9 @@
 # A Workflow that runs the podcast-tldr WorkflowTemplate once.
+#
 #   argo submit -n argo argo/workflow-run.yaml --watch
+#
+# To override parallelism (e.g. on a 4-core machine):
+#   argo submit -n argo argo/workflow-run.yaml -p maxParallelEpisodes=2 --watch
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
@@ -7,3 +11,7 @@ metadata:
 spec:
   workflowTemplateRef:
     name: podcast-tldr
+  # arguments:
+  #   parameters:
+  #     - name: maxParallelEpisodes
+  #       value: "2"

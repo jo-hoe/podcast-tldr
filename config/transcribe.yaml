@@ -13,3 +13,8 @@ device: cpu
 #   int8_float16 → good balance on CUDA if VRAM is limited.
 computeType: int8
 outputFormat: json
+# maxParallelEpisodes: number of episodes to transcribe concurrently.
+# On CPU: each Whisper instance uses multiple threads internally. Values above
+# the number of physical cores bring diminishing returns. Sensible range: 1-4.
+# On CUDA: keep at 1 (GPU parallelism is handled internally by CTranslate2).
+maxParallelEpisodes: 1

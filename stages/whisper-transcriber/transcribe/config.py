@@ -17,6 +17,8 @@ from typing import Any
 import yaml
 
 ENV_CONFIG_PATH = "CONFIG_PATH"
+# Runtime override for maxParallelEpisodes — set via k8s/Argo without changing the ConfigMap.
+ENV_MAX_PARALLEL_EPISODES = "WHISPER_MAX_PARALLEL_EPISODES"
 
 _VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "warning", "error"})
 _VALID_DEVICES = frozenset({"cpu", "cuda", "auto"})
@@ -37,6 +39,10 @@ class Config:
         device: Compute device: ``cpu`` (default), ``cuda`` or ``auto``.
         compute_type: CTranslate2 compute type, e.g. ``int8`` (default), ``float16``.
         output_format: Transcript output format. Only ``json`` is supported today.
+        max_parallel_episodes: Maximum number of episodes to transcribe concurrently.
+            Defaults to 1 (sequential). On CPU, each Whisper instance uses multiple
+            threads internally, so values above the number of physical cores bring
+            diminishing returns. On CUDA, set to 1 (GPU handles parallelism internally).
     """
 
     log_level: str = "info"
@@ -46,6 +52,7 @@ class Config:
     device: str = "cpu"
     compute_type: str = "int8"
     output_format: str = "json"
+    max_parallel_episodes: int = 1
 
 
 def resolve_path() -> str:
@@ -80,7 +87,7 @@ class ConfigError(ValueError):
 def _from_mapping(data: dict[str, Any]) -> Config:
     """Build a Config from a camelCase mapping, applying dataclass defaults."""
     defaults = Config()
-    return Config(
+    cfg = Config(
         log_level=_str(data, "logLevel", defaults.log_level),
         work_dir=_str(data, "workDir", defaults.work_dir),
         model_name=_str(data, "modelName", defaults.model_name),
@@ -88,7 +95,26 @@ def _from_mapping(data: dict[str, Any]) -> Config:
         device=_str(data, "device", defaults.device),
         compute_type=_str(data, "computeType", defaults.compute_type),
         output_format=_str(data, "outputFormat", defaults.output_format),
+        max_parallel_episodes=_int(data, "maxParallelEpisodes", defaults.max_parallel_episodes),
     )
+    # Allow WHISPER_MAX_PARALLEL_EPISODES env var to override config (e.g. from Argo parameter).
+    env_parallel = os.environ.get(ENV_MAX_PARALLEL_EPISODES, "").strip()
+    if env_parallel:
+        try:
+            cfg.max_parallel_episodes = int(env_parallel)
+        except ValueError:
+            pass
+    return cfg
+
+
+def _int(data: dict[str, Any], key: str, default: int) -> int:
+    """Return the int value for ``key``, or ``default`` when absent/None."""
+    if key not in data or data[key] is None:
+        return default
+    try:
+        return int(data[key])
+    except (TypeError, ValueError):
+        return default
 
 
 def _str(data: dict[str, Any], key: str, default: str) -> str:
