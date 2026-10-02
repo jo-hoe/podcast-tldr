@@ -23,6 +23,10 @@ jobs:
                 check-keys: false
               comments:
                 min-spaces-from-content: 1
+              braces:
+                # Allow inline flow-style { key: value } common in k8s manifests.
+                min-spaces-inside: 0
+                max-spaces-inside: 1
           file_or_dir: |
             config
             k8s
