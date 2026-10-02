@@ -10,6 +10,9 @@ k8s/02-secrets.yaml
 config/*.local.yaml
 config/*.local.txt
 
+# Temporary run-specific compose overrides
+*.run.yml
+
 # Claude Code session state
 .claude/
 
