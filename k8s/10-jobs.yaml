@@ -21,7 +21,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: download
-          image: ghcr.io/jo-hoe/rss-audio-downloader:latest
+          image: ghcr.io/jo-hoe/podcast-tldr/rss-audio-downloader:latest
           env: [{ name: CONFIG_PATH, value: /app/config/download.yaml }]
           volumeMounts:
             - { name: work, mountPath: /app/mount/work }
@@ -41,7 +41,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: transcribe
-          image: ghcr.io/jo-hoe/whisper-transcriber:latest
+          image: ghcr.io/jo-hoe/podcast-tldr/whisper-transcriber:latest
           env: [{ name: CONFIG_PATH, value: /app/config/transcribe.yaml }]
           resources:
             requests: { cpu: "500m", memory: 2Gi }
@@ -72,7 +72,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: summarize
-          image: ghcr.io/jo-hoe/llm-summarizer:latest
+          image: ghcr.io/jo-hoe/podcast-tldr/llm-summarizer:latest
           env:
             - { name: CONFIG_PATH, value: /app/config/summarize.yaml }
             - name: LITELLM_API_KEY
@@ -96,7 +96,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: zip
-          image: ghcr.io/jo-hoe/artifact-zipper:latest
+          image: ghcr.io/jo-hoe/podcast-tldr/artifact-zipper:latest
           env: [{ name: CONFIG_PATH, value: /app/config/zip.yaml }]
           volumeMounts:
             - { name: work, mountPath: /app/mount/work }
@@ -117,7 +117,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532 }
       containers:
         - name: backup
-          image: ghcr.io/jo-hoe/git-archive-backup:latest
+          image: ghcr.io/jo-hoe/podcast-tldr/git-archive-backup:latest
           env:
             - { name: CONFIG_PATH, value: /app/config/backup.yaml }
             - name: PODCAST_TLDR_BACKUP_TOKEN

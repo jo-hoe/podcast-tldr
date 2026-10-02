@@ -1,0 +1,11 @@
+services:
+  summarize:
+    build: .
+    image: llm-summarizer
+    volumes:
+      - "./config/:/app/config"
+      - "./volume/work/:/app/mount/work"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+      # The API key is read from this environment variable (see config.apiKeyEnv).
+      LITELLM_API_KEY: "${LITELLM_API_KEY:-}"

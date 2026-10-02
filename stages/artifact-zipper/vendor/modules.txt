@@ -1,0 +1,7 @@
+# github.com/jo-hoe/manifest-lib v0.0.0 => ../../libs/manifest-lib
+## explicit; go 1.26.0
+github.com/jo-hoe/manifest-lib
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
+# github.com/jo-hoe/manifest-lib => ../../libs/manifest-lib

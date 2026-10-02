@@ -1,0 +1,12 @@
+services:
+  backup:
+    build: .
+    image: git-archive-backup
+    volumes:
+      - "./config/:/app/config"
+      - "./volume/work/:/app/mount/work"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+      # The git access token for the private archive repository. Provide it in the
+      # host environment (or an .env file); it is never written to the config file.
+      PODCAST_TLDR_BACKUP_TOKEN: "${PODCAST_TLDR_BACKUP_TOKEN}"

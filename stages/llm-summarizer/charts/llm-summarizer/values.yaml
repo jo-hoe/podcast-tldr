@@ -1,0 +1,73 @@
+# Default values for llm-summarizer.
+
+image:
+  repository: ghcr.io/jo-hoe/llm-summarizer
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The summarize stage runs to completion as a Kubernetes Job.
+job:
+  # backoffLimit is the number of retries before the Job is marked failed.
+  backoffLimit: 2
+  # restartPolicy for the pod. Never or OnFailure are valid for Jobs.
+  restartPolicy: Never
+
+# Shared work directory. In a real pipeline this is backed by a ReadWriteMany PVC
+# so this stage can read the transcripts produced upstream and write summaries.
+workVolume:
+  # existingClaim, when set, mounts an already-provisioned PVC instead of the
+  # emptyDir default (which does not survive the Job and is only useful for demos).
+  existingClaim: ""
+  mountPath: /app/mount/work
+
+# LLM API key. The stage reads the key from the environment variable named by
+# config.apiKeyEnv. Provide it either through an existing secret or inline.
+apiKey:
+  # existingSecret / existingSecretKey mount the key from an already-provisioned
+  # Secret. When existingSecret is empty, a Secret is rendered from `value`.
+  existingSecret: ""
+  existingSecretKey: ""
+  # Inline value, used only when existingSecret is empty. Prefer existingSecret in
+  # real deployments so the key is not stored in Helm values.
+  value: ""
+
+# Inline config.yaml and prompt.txt rendered into a ConfigMap and mounted at
+# /app/config. The API key itself is NOT stored here; only the env var name is.
+config:
+  logLevel: info
+  workDir: /app/mount/work
+  baseURL: http://litellm:4000/v1
+  model: summarizer
+  apiKeyEnv: LITELLM_API_KEY
+  promptPath: /app/config/prompt.txt
+  maxTokens: 1024
+  temperature: 0.3
+
+# Summarization prompt mounted alongside the config.
+prompt: |
+  You are an expert podcast editor. Summarize the transcript that follows.
+
+  Write the summary in Markdown with a one-sentence TL;DR, a short Overview,
+  and a Key Points bulleted list. Be faithful to the transcript and concise.
+  Output only the Markdown summary.
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# Pod security context — run as a non-root user (matches the distroless nonroot image).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

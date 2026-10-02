@@ -1,0 +1,70 @@
+# Default values for git-archive-backup.
+
+image:
+  repository: ghcr.io/jo-hoe/git-archive-backup
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The backup stage runs to completion as a Kubernetes Job.
+job:
+  # backoffLimit is the number of retries before the Job is marked failed.
+  backoffLimit: 2
+  # restartPolicy for the pod. Never or OnFailure are valid for Jobs.
+  restartPolicy: Never
+
+# Shared work directory. In a real pipeline this is backed by a ReadWriteMany PVC
+# so this stage can read the bundles produced upstream. The archive repo is cloned
+# into a hidden directory under this path, so the volume must be writable.
+workVolume:
+  # existingClaim, when set, mounts an already-provisioned PVC instead of the
+  # emptyDir default (which does not survive the Job and is only useful for demos).
+  existingClaim: ""
+  mountPath: /app/mount/work
+
+# The git access token for the private archive repository. It is mounted into the
+# container as an environment variable from a Kubernetes Secret so it never lands
+# in the ConfigMap or on disk.
+secret:
+  # create=true renders a Secret from the token value below. Set create=false and
+  # existingSecret to reference a Secret you manage out of band (recommended for
+  # production so the token is not stored in values).
+  create: true
+  # existingSecret, when set, is used instead of a chart-managed Secret.
+  existingSecret: ""
+  # tokenKey is the key inside the Secret holding the token.
+  tokenKey: token
+  # token is the raw access token. Prefer --set-string secret.token=... or an
+  # existingSecret over committing a value here.
+  token: ""
+
+# Inline config.yaml rendered into a ConfigMap and mounted at /app/config. Note the
+# token is intentionally absent here — it comes from the Secret above.
+config:
+  logLevel: info
+  workDir: /app/mount/work
+  repoURL: ""
+  tokenEnv: PODCAST_TLDR_BACKUP_TOKEN
+  branch: main
+  authorName: git-archive-backup
+  authorEmail: git-archive-backup@users.noreply.github.com
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# Pod security context — run as a non-root user (matches the distroless nonroot image).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

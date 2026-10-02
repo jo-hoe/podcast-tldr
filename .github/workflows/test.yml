@@ -1,0 +1,59 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-go:
+    name: test ${{ matrix.stage }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        stage:
+          - rss-audio-downloader
+          - llm-summarizer
+          - artifact-zipper
+          - git-archive-backup
+          - libs/manifest-lib
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: |
+            stages/rss-audio-downloader/go.sum
+            stages/llm-summarizer/go.sum
+            stages/artifact-zipper/go.sum
+            stages/git-archive-backup/go.sum
+            libs/manifest-lib/go.sum
+
+      - name: Test ${{ matrix.stage }}
+        working-directory: ${{ startsWith(matrix.stage, 'libs/') && matrix.stage || format('stages/{0}', matrix.stage) }}
+        run: go test -mod=vendor -covermode=count ./...
+
+  test-python:
+    name: test whisper-transcriber
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: stages/whisper-transcriber
+        run: pip install -e ".[dev]"
+
+      - name: Test
+        working-directory: stages/whisper-transcriber
+        run: pytest
+
+      - name: Lint
+        working-directory: stages/whisper-transcriber
+        run: ruff check .

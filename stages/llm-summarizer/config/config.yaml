@@ -1,0 +1,22 @@
+logLevel: info
+
+# Directory holding episodes.yaml, the transcripts, and the summaries this stage
+# writes. In containers this is a mounted volume shared with the other stages.
+workDir: ./mount/work
+
+# OpenAI-compatible endpoint. Point this at your LiteLLM proxy.
+baseURL: http://litellm:4000/v1
+
+# Model name as configured in the LiteLLM proxy.
+model: summarizer
+
+# Name of the environment variable that holds the API key. The key itself is never
+# stored in this file; it is read from the environment at runtime.
+apiKeyEnv: LITELLM_API_KEY
+
+# Path to the summarization prompt template.
+promptPath: ./config/prompt.txt
+
+# Generation controls.
+maxTokens: 1024
+temperature: 0.3

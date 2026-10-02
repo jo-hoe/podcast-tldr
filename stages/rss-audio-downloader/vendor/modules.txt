@@ -1,0 +1,42 @@
+# github.com/jo-hoe/manifest-lib v0.0.0 => ../../libs/manifest-lib
+## explicit; go 1.26.0
+github.com/jo-hoe/manifest-lib
+# github.com/mmcdole/gofeed v1.5.0
+## explicit; go 1.25.0
+github.com/mmcdole/gofeed
+github.com/mmcdole/gofeed/atom
+github.com/mmcdole/gofeed/extensions
+github.com/mmcdole/gofeed/internal/shared
+github.com/mmcdole/gofeed/json
+github.com/mmcdole/gofeed/rss
+# github.com/mmcdole/goxpp/v2 v2.0.0
+## explicit; go 1.21
+github.com/mmcdole/goxpp/v2
+# golang.org/x/net v0.59.0
+## explicit; go 1.26.0
+golang.org/x/net/html
+golang.org/x/net/html/atom
+golang.org/x/net/html/charset
+# golang.org/x/text v0.42.0
+## explicit; go 1.26.0
+golang.org/x/text/encoding
+golang.org/x/text/encoding/charmap
+golang.org/x/text/encoding/htmlindex
+golang.org/x/text/encoding/internal
+golang.org/x/text/encoding/internal/identifier
+golang.org/x/text/encoding/japanese
+golang.org/x/text/encoding/korean
+golang.org/x/text/encoding/simplifiedchinese
+golang.org/x/text/encoding/traditionalchinese
+golang.org/x/text/encoding/unicode
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/internal/utf8internal
+golang.org/x/text/language
+golang.org/x/text/runes
+golang.org/x/text/transform
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
+# github.com/jo-hoe/manifest-lib => ../../libs/manifest-lib

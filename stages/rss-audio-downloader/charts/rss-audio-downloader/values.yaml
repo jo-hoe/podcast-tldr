@@ -1,0 +1,53 @@
+# Default values for rss-audio-downloader.
+
+image:
+  repository: ghcr.io/jo-hoe/rss-audio-downloader
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The download stage runs to completion as a Kubernetes Job.
+job:
+  # backoffLimit is the number of retries before the Job is marked failed.
+  backoffLimit: 2
+  # restartPolicy for the pod. Never or OnFailure are valid for Jobs.
+  restartPolicy: Never
+
+# Shared work directory. In a real pipeline this is backed by a ReadWriteMany PVC
+# so downstream stages can read the artifacts this stage produces.
+workVolume:
+  # existingClaim, when set, mounts an already-provisioned PVC instead of the
+  # emptyDir default (which does not survive the Job and is only useful for demos).
+  existingClaim: ""
+  mountPath: /app/mount/work
+
+# Inline config.yaml rendered into a ConfigMap and mounted at /app/config.
+config:
+  logLevel: info
+  workDir: /app/mount/work
+  maxParallelDownloads: 4
+  feeds:
+    - url: https://feeds.megaphone.fm/sciencevs
+      selector:
+        startEpisode: 1
+        endEpisode: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# Pod security context — run as a non-root user (matches the distroless nonroot image).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

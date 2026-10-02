@@ -1,0 +1,16 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: podcasttldrcluster # (will still be prefixed with `k3d-`)
+servers: 1
+agents: 1
+kubeAPI:
+  # setting port and IP on Windows explicitly as the default k3d port can lead to
+  # kubectl not being able to connect
+  hostIP: "127.0.0.1"
+  hostPort: "6550"
+registries:
+  create:
+    name: registry.localhost
+    host: "0.0.0.0"
+    hostPort: "5000"

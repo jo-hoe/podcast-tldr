@@ -1,0 +1,6 @@
+apiVersion: v2
+name: whisper-transcriber
+description: Stage B of the podcast-tldr pipeline - transcribes downloaded episode audio with faster-whisper and appends transcript fields to the episodes manifest.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

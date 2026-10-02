@@ -1,14 +1,108 @@
 version: 2
 updates:
-  - package-ecosystem: "docker-compose"
-    directory: "/"
+  # GitHub Actions (root)
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
     commit-message:
       prefix: ":arrow_up: "
-  - package-ecosystem: "github-actions"
-    directory: "/"
+
+  # Docker Compose (root)
+  - package-ecosystem: docker-compose
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
+    commit-message:
+      prefix: ":arrow_up: "
+
+  # Go: manifest-lib
+  - package-ecosystem: gomod
+    directory: /libs/manifest-lib
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: ":arrow_up: "
+
+  # Go: rss-audio-downloader
+  - package-ecosystem: gomod
+    directory: /stages/rss-audio-downloader
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: ":arrow_up: "
+  - package-ecosystem: docker
+    directory: /stages/rss-audio-downloader
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ":arrow_up: "
+
+  # Python: whisper-transcriber
+  - package-ecosystem: pip
+    directory: /stages/whisper-transcriber
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: ":arrow_up: "
+  - package-ecosystem: docker
+    directory: /stages/whisper-transcriber
+    schedule:
+      interval: weekly
+    ignore:
+      # CUDA base: CTranslate2 wheels are compiled against CUDA 12.x; a major
+      # bump (13.x) may break ABI. Review manually before allowing a major upgrade.
+      - dependency-name: "nvidia/cuda"
+      # Python 3.12 pinned: the faster-whisper/PyAV/CTranslate2 stack only ships
+      # cp312 wheels. Bump only once those wheels support a newer interpreter.
+      - dependency-name: "python"
+    commit-message:
+      prefix: ":arrow_up: "
+
+  # Go: llm-summarizer
+  - package-ecosystem: gomod
+    directory: /stages/llm-summarizer
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: ":arrow_up: "
+  - package-ecosystem: docker
+    directory: /stages/llm-summarizer
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ":arrow_up: "
+
+  # Go: artifact-zipper
+  - package-ecosystem: gomod
+    directory: /stages/artifact-zipper
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: ":arrow_up: "
+  - package-ecosystem: docker
+    directory: /stages/artifact-zipper
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ":arrow_up: "
+
+  # Go: git-archive-backup
+  - package-ecosystem: gomod
+    directory: /stages/git-archive-backup
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: ":arrow_up: "
+  - package-ecosystem: docker
+    directory: /stages/git-archive-backup
+    schedule:
+      interval: weekly
     commit-message:
       prefix: ":arrow_up: "

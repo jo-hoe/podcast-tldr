@@ -1,0 +1,6 @@
+apiVersion: v2
+name: llm-summarizer
+description: Stage C of the podcast-tldr pipeline - summarizes episode transcripts with an LLM and records the summaries on the manifest.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

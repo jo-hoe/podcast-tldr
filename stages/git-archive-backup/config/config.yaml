@@ -1,0 +1,27 @@
+logLevel: info
+
+# Shared work directory holding episodes.yaml and the artifacts produced by the
+# upstream stages. In containers this is a mounted volume shared with the other
+# pipeline stages.
+workDir: ./mount/work
+
+# HTTPS URL of the PRIVATE git archive repository episodes are backed up into.
+# Required — there is no sensible default. Example:
+#   repoURL: https://github.com/jo-hoe/podcast-archive.git
+repoURL: ""
+
+# Name of the environment variable that holds the git access token used to push
+# to the private archive. The token itself is NEVER stored in this file so the
+# secret does not land on disk. Defaults to PODCAST_TLDR_BACKUP_TOKEN.
+tokenEnv: PODCAST_TLDR_BACKUP_TOKEN
+
+# Branch to commit to and push. Defaults to main.
+branch: main
+
+# Git commit author for archive commits.
+authorName: git-archive-backup
+authorEmail: git-archive-backup@users.noreply.github.com
+
+# Local directory the archive repo is cloned into. Defaults to a hidden directory
+# under workDir so the checkout is co-located with the artifacts being backed up.
+# checkoutDir: ./mount/work/.backup-checkout

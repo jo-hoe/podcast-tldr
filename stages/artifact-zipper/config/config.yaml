@@ -1,0 +1,5 @@
+logLevel: info
+
+# Directory where episodes.yaml, transcripts and the generated bundles live. In
+# containers this is a mounted volume shared with the up- and downstream stages.
+workDir: ./mount/work

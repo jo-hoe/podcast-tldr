@@ -1,0 +1,59 @@
+# Default values for whisper-transcriber.
+
+image:
+  repository: ghcr.io/jo-hoe/whisper-transcriber
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The transcribe stage runs to completion as a Kubernetes Job.
+job:
+  # backoffLimit is the number of retries before the Job is marked failed.
+  backoffLimit: 2
+  # restartPolicy for the pod. Never or OnFailure are valid for Jobs.
+  restartPolicy: Never
+
+# Shared work directory. In a real pipeline this is backed by a ReadWriteMany PVC
+# so this stage can read the audio that stage A wrote and the summarise stage can
+# read the transcripts this stage produces.
+workVolume:
+  # existingClaim, when set, mounts an already-provisioned PVC instead of the
+  # emptyDir default (which does not survive the Job and is only useful for demos).
+  existingClaim: ""
+  mountPath: /app/mount/work
+
+# Model cache directory. faster-whisper downloads models here on first use; a
+# persistent claim avoids re-downloading on every Job run.
+modelVolume:
+  existingClaim: ""
+  mountPath: /app/mount/models
+
+# Inline config.yaml rendered into a ConfigMap and mounted at /app/config.
+config:
+  logLevel: info
+  workDir: /app/mount/work
+  modelName: base
+  modelCachePath: /app/mount/models
+  device: cpu
+  computeType: int8
+  outputFormat: json
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+# Pod security context — run as a non-root user.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

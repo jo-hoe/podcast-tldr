@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "rss-audio-downloader.name" . }}
+  labels:
+    {{- include "rss-audio-downloader.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.job.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "rss-audio-downloader.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: {{ .Values.job.restartPolicy }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "rss-audio-downloader.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: CONFIG_PATH
+              value: /app/config/config.yaml
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: work
+              mountPath: {{ .Values.workVolume.mountPath }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "rss-audio-downloader.name" . }}
+        - name: work
+          {{- if .Values.workVolume.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.workVolume.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

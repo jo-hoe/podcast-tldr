@@ -31,10 +31,10 @@ create-cluster: ## create the local k3d cluster
 	@k3d cluster create --config ${ROOT_DIR}k3d/podcasttldrcluster.yaml
 
 .PHONY: build-and-push
-build-and-push: ## build every stage image from sibling repos and push to the local registry
+build-and-push: ## build every stage image from stages/ and push to the local registry
 	@for stage in $(STAGES); do \
 		echo "building $$stage"; \
-		docker build -t localhost:5000/$$stage:${IMAGE_VERSION} ${ROOT_DIR}../$$stage; \
+		docker build -t localhost:5000/$$stage:${IMAGE_VERSION} ${ROOT_DIR}stages/$$stage; \
 		docker push localhost:5000/$$stage:${IMAGE_VERSION}; \
 	done
 

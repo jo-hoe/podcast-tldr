@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-commit hook to lint and format Python files with ruff.
+
+echo "Running ruff on all Python files..."
+
+ruff check --fix .
+
+if ! git diff --quiet; then
+    echo "✓ Code formatted successfully"
+    echo "Note: Formatted files have been modified. Please review and stage the changes."
+    exit 0
+fi
+
+echo "✓ All files pass ruff"
+exit 0

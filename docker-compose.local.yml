@@ -1,28 +1,37 @@
-# Local run override: swap ghcr.io images for locally built ones.
+# Local run override: build images from the stages/ subdirectories instead of
+# pulling from ghcr.io. Useful for iterating locally before pushing a release tag.
 #
-# Usage (run from the orchestrator repo root):
+# Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d \
 #     download transcribe summarize zip backup
 #
-# Build the stage images first:
-#   for stage in rss-audio-downloader whisper-transcriber llm-summarizer artifact-zipper git-archive-backup; do
-#     docker build -t "${stage}:local" "../${stage}"
-#   done
-#
-# Personal config overrides:
-#   The committed config/*.yaml files are safe generic examples. Copy any to
-#   config/*.local.yaml and edit there (gitignored, never committed). To mount
-#   them instead of the defaults, add a third override file that maps the
-#   .local.yaml paths into each service's /app/config/config.yaml volume.
+# Personal config overrides (gitignored, never committed):
+#   cp config/download.yaml config/download.local.yaml && $EDITOR config/download.local.yaml
+#   cp config/backup.yaml   config/backup.local.yaml   && $EDITOR config/backup.local.yaml
+# To mount them, add a third compose override that remaps the .local.yaml volume paths.
 
 services:
   download:
+    build:
+      context: ./stages/rss-audio-downloader
     image: rss-audio-downloader:local
+
   transcribe:
+    build:
+      context: ./stages/whisper-transcriber
     image: whisper-transcriber:local
+
   summarize:
+    build:
+      context: ./stages/llm-summarizer
     image: llm-summarizer:local
+
   zip:
+    build:
+      context: ./stages/artifact-zipper
     image: artifact-zipper:local
+
   backup:
+    build:
+      context: ./stages/git-archive-backup
     image: git-archive-backup:local

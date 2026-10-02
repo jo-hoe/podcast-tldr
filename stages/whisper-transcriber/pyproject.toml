@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whisper-transcriber"
+version = "1.0.0"
+description = "Stage B of the podcast-tldr pipeline: transcribe podcast audio via faster-whisper."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "jo-hoe" }]
+dependencies = [
+    "faster-whisper>=1.2.1",
+    # faster-whisper 1.2.x decodes audio via `av.open(..., metadata_errors=...)`,
+    # a kwarg PyAV removed around v15, so cap below 15. The upper bound also stays
+    # below 14.4, the only <15 release that ships no cp312 wheel (pip would fall
+    # back to a source build that needs ffmpeg 7 + Cython and fails in the image).
+    "av>=12.3,<14.4",
+    # faster-whisper 1.2.x still passes the `metadata_errors` kwarg that was
+    # removed in huggingface_hub 1.0, so pin below 1.0 to keep model loading working.
+    "huggingface_hub>=0.23,<1.0",
+    "pyyaml>=6.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+whisper-transcriber = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = ["transcribe"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

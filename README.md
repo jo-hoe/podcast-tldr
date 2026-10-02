@@ -1,9 +1,8 @@
 # Podcast TLDR
 
-Turn podcasts into durable, searchable notes. This is the **orchestrator** for a
-pipeline of small, reusable, independently-runnable containers that download a
-podcast, transcribe it, summarize it, bundle the artifacts, and back everything up
-to a private git archive.
+Turn podcasts into durable, searchable notes. A pipeline of small,
+independently-runnable containers that download a podcast, transcribe it,
+summarize it, bundle the artifacts, and back everything up to a private git archive.
 
 ```
  A. download  ->  B. transcribe  ->  C. summarize  ->  D. zip  ->  E. backup
@@ -12,22 +11,23 @@ to a private git archive.
     manifest)
 ```
 
-Every stage is its own repository and container image, wired together by a shared
-`episodes.yaml` manifest that flows through a shared work directory. Stages are
-pure: each reads the manifest, produces its artifacts, appends the fields it owns,
-and writes the manifest back.
+Every stage is its own container image, wired together by a shared `episodes.yaml`
+manifest that flows through a shared work directory. Stages are pure: each reads
+the manifest, produces its artifacts, appends the fields it owns, and writes the
+manifest back. All stage source lives in this repo under `stages/` and `libs/`;
+images are published to `ghcr.io/jo-hoe/podcast-tldr/<stage>` on each release tag.
 
-## Repositories
+## Layout
 
-| Stage | Repo | Language | Role |
-|------|------|----------|------|
-| — | [manifest-lib](https://github.com/jo-hoe/manifest-lib) | Go | Shared stage contract (`episodes.yaml`) |
-| A | [rss-audio-downloader](https://github.com/jo-hoe/rss-audio-downloader) | Go | RSS → audio + manifest |
-| B | [whisper-transcriber](https://github.com/jo-hoe/whisper-transcriber) | Python | audio → transcript (faster-whisper) |
-| C | [llm-summarizer](https://github.com/jo-hoe/llm-summarizer) | Go | transcript → summary (LiteLLM) |
-| D | [artifact-zipper](https://github.com/jo-hoe/artifact-zipper) | Go | bundle transcript + metadata → `.zip` |
-| E | [git-archive-backup](https://github.com/jo-hoe/git-archive-backup) | Go | push summary + bundle to a private archive |
-| — | [media-archive](https://github.com/jo-hoe/media-archive) | — | Private backup target |
+| Stage | Directory | Language | Role |
+|-------|-----------|----------|------|
+| — | [`libs/manifest-lib`](./libs/manifest-lib) | Go | Shared stage contract (`episodes.yaml`) |
+| A | [`stages/rss-audio-downloader`](./stages/rss-audio-downloader) | Go | RSS → audio + manifest |
+| B | [`stages/whisper-transcriber`](./stages/whisper-transcriber) | Python | audio → transcript (faster-whisper) |
+| C | [`stages/llm-summarizer`](./stages/llm-summarizer) | Go | transcript → summary (LLM) |
+| D | [`stages/artifact-zipper`](./stages/artifact-zipper) | Go | bundle transcript + metadata → `.zip` |
+| E | [`stages/git-archive-backup`](./stages/git-archive-backup) | Go | push summary + bundle to a private archive |
+| — | [media-archive](https://github.com/jo-hoe/media-archive) | — | Private backup target (separate private repo) |
 
 ## Quickstart
 
@@ -52,8 +52,12 @@ Then export the backup token and start the pipeline:
 ```bash
 export PODCAST_TLDR_BACKUP_TOKEN="$(gh auth token)"
 
-# Use ghcr.io images (default) — or add -f docker-compose.local.yml for locally built ones.
+# Use published ghcr.io images (default):
 docker compose up -d download transcribe summarize zip backup
+
+# Or build locally from stages/ and run those:
+docker compose -f docker-compose.yml -f docker-compose.local.yml build
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d download transcribe summarize zip backup
 
 # Watch the run — stages sequence automatically; follow the last stage.
 docker compose logs -f backup

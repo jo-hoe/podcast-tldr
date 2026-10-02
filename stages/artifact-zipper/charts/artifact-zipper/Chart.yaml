@@ -1,0 +1,6 @@
+apiVersion: v2
+name: artifact-zipper
+description: Stage D of the podcast-tldr pipeline - bundles each episode's transcript and metadata into a zip archive and records the bundle path on the episodes manifest.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

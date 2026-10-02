@@ -1,0 +1,6 @@
+apiVersion: v2
+name: rss-audio-downloader
+description: Stage A of the podcast-tldr pipeline - downloads podcast audio and writes the episodes manifest.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

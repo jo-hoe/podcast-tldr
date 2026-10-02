@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-type: "all"
+    commit-message:
+      prefix: ":arrow_up: "
+    open-pull-requests-limit: 50
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-type: "all"
+    ignore:
+      # The faster-whisper / PyAV / CTranslate2 stack only has cp312 wheels; a newer
+      # python base image breaks the build (av compiles from source). See Dockerfile.
+      - dependency-name: "python"
+      # CUDA base image: CTranslate2 wheels are compiled against CUDA 12.x; a major
+      # bump (13.x) may break ABI. Review manually before allowing a major upgrade.
+      - dependency-name: "nvidia/cuda"
+    commit-message:
+      prefix: ":arrow_up: "
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ":arrow_up: "

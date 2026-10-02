@@ -1,0 +1,22 @@
+logLevel: info
+
+# Directory where audio files and episodes.yaml are written. In containers this is
+# a mounted volume shared with the downstream stages.
+workDir: ./mount/work
+
+# Maximum number of episodes downloaded concurrently.
+maxParallelDownloads: 4
+
+# One or more podcast feeds. Each feed has an optional selector; when a selector
+# (or any of its fields) is omitted, all episodes are taken.
+feeds:
+  - url: https://feeds.megaphone.fm/sciencevs
+    selector:
+      # 1-based, newest-first. Take the 3 most recent episodes.
+      startEpisode: 1
+      endEpisode: 3
+      # Optional publish-date bounds (RFC3339). Either or both may be omitted.
+      # startDate: 2026-01-01T00:00:00Z
+      # endDate: 2026-12-31T23:59:59Z
+      # Optional regex applied to the episode title.
+      # nameRegex: "(?i)bread"

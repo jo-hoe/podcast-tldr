@@ -1,0 +1,9 @@
+services:
+  zip:
+    build: .
+    image: artifact-zipper
+    volumes:
+      - "./config/:/app/config"
+      - "./volume/work/:/app/mount/work"
+    environment:
+      CONFIG_PATH: /app/config/config.yaml

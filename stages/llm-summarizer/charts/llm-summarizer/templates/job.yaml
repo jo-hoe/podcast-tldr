@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "llm-summarizer.name" . }}
+  labels:
+    {{- include "llm-summarizer.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.job.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "llm-summarizer.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: {{ .Values.job.restartPolicy }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "llm-summarizer.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: CONFIG_PATH
+              value: /app/config/config.yaml
+            - name: {{ .Values.config.apiKeyEnv }}
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.apiKey.existingSecret }}
+                  name: {{ .Values.apiKey.existingSecret }}
+                  key: {{ .Values.apiKey.existingSecretKey }}
+                  {{- else }}
+                  name: {{ include "llm-summarizer.name" . }}-apikey
+                  key: {{ .Values.config.apiKeyEnv }}
+                  {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: work
+              mountPath: {{ .Values.workVolume.mountPath }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "llm-summarizer.name" . }}
+        - name: work
+          {{- if .Values.workVolume.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.workVolume.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
