@@ -36,11 +36,18 @@ func New(cfg *config.Config, parser feed.Parser, downloader download.Downloader)
 // Run executes the stage and writes the manifest. It returns an error only for
 // failures that make the manifest unwritable; per-episode download failures are
 // logged and skipped so one bad episode does not abort the whole run.
+//
+// If an episodes.yaml already exists in the work directory (from a previous run),
+// it is loaded and any episode with BackedUp: true is carried forward unchanged —
+// its audio is not re-downloaded and it is not re-processed by downstream stages.
+// New episodes from the feed are appended.
 func (s *Service) Run(ctx context.Context) error {
+	done := loadDoneEpisodes(s.cfg.WorkDir)
+
 	m := &manifest.Manifest{}
 
 	for _, feedCfg := range s.cfg.Feeds {
-		podcast, err := s.collectPodcast(ctx, feedCfg)
+		podcast, err := s.collectPodcast(ctx, feedCfg, done)
 		if err != nil {
 			slog.Error("skipping feed", "url", feedCfg.URL, "err", err)
 			continue
@@ -57,9 +64,32 @@ func (s *Service) Run(ctx context.Context) error {
 	return nil
 }
 
+// loadDoneEpisodes reads any existing manifest and returns a set of episode IDs
+// that are already fully backed up. Returns an empty set on any error (missing
+// file, parse error) so a missing or corrupt manifest is not fatal.
+func loadDoneEpisodes(workDir string) map[string]manifest.Episode {
+	done := make(map[string]manifest.Episode)
+	existing, err := manifest.Load(workDir)
+	if err != nil {
+		return done // missing or unreadable — start fresh
+	}
+	for _, pod := range existing.Podcasts {
+		for _, ep := range pod.Episodes {
+			if ep.BackedUp {
+				done[ep.ID] = ep
+			}
+		}
+	}
+	if len(done) > 0 {
+		slog.Info("skipping already backed-up episodes", "count", len(done))
+	}
+	return done
+}
+
 // collectPodcast parses and filters a single feed, then downloads the selected
-// episodes into a manifest.Podcast.
-func (s *Service) collectPodcast(ctx context.Context, feedCfg config.Feed) (*manifest.Podcast, error) {
+// episodes into a manifest.Podcast. Episodes already present in done (BackedUp:
+// true from a previous run) are carried forward unchanged without re-downloading.
+func (s *Service) collectPodcast(ctx context.Context, feedCfg config.Feed, done map[string]manifest.Episode) (*manifest.Podcast, error) {
 	parsed, err := s.parser.Parse(feedCfg.URL)
 	if err != nil {
 		return nil, err
@@ -71,25 +101,17 @@ func (s *Service) collectPodcast(ctx context.Context, feedCfg config.Feed) (*man
 	}
 	slog.Info("feed parsed", "show", parsed.ShowTitle, "total", len(parsed.Episodes), "selected", len(selected))
 
-	episodes := s.buildEpisodes(parsed, selected)
-	s.downloadAll(ctx, episodes)
-
-	return &manifest.Podcast{
-		ShowTitle:       parsed.ShowTitle,
-		ShowDescription: parsed.ShowDescription,
-		FeedURL:         feedCfg.URL,
-		Author:          parsed.Author,
-		Episodes:        keepDownloaded(episodes),
-	}, nil
-}
-
-// buildEpisodes maps selected parsed episodes into manifest episodes with stable
-// IDs and target audio paths (audio not yet downloaded).
-func (s *Service) buildEpisodes(parsed *feed.ParsedFeed, selected []feed.ParsedEpisode) []manifest.Episode {
 	show := manifest.Slugify(parsed.ShowTitle)
-	episodes := make([]manifest.Episode, 0, len(selected))
+	var toDownload []manifest.Episode
+	var carried []manifest.Episode
+
 	for _, pe := range selected {
 		id := episodeID(show, pe.Title, pe.Published)
+		if ep, ok := done[id]; ok {
+			slog.Info("skipping backed-up episode", "id", id)
+			carried = append(carried, ep)
+			continue
+		}
 		ep := manifest.Episode{
 			ID:          id,
 			Title:       pe.Title,
@@ -99,9 +121,19 @@ func (s *Service) buildEpisodes(parsed *feed.ParsedFeed, selected []feed.ParsedE
 			Duration:    pe.Duration,
 		}
 		ep.AudioFile = ep.AudioPath(audioExt(pe.AudioType, pe.AudioURL))
-		episodes = append(episodes, ep)
+		toDownload = append(toDownload, ep)
 	}
-	return episodes
+
+	s.downloadAll(ctx, toDownload)
+
+	episodes := append(carried, keepDownloaded(toDownload)...)
+	return &manifest.Podcast{
+		ShowTitle:       parsed.ShowTitle,
+		ShowDescription: parsed.ShowDescription,
+		FeedURL:         feedCfg.URL,
+		Author:          parsed.Author,
+		Episodes:        episodes,
+	}, nil
 }
 
 // downloadAll downloads every episode's audio concurrently, bounded by

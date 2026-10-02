@@ -156,3 +156,65 @@ func TestAudioExt(t *testing.T) {
 		}
 	}
 }
+
+func TestRun_SkipsAlreadyBackedUpEpisodes(t *testing.T) {
+	workDir := t.TempDir()
+	feedURL := "https://example.com/rss"
+
+	// Pre-populate manifest with one backed-up episode.
+	existing := &manifest.Manifest{Podcasts: []manifest.Podcast{{
+		ShowTitle: "Science Vs",
+		FeedURL:   feedURL,
+		Episodes: []manifest.Episode{
+			{ID: "science-vs-episode-one", Title: "Episode One",
+				AudioURL: "https://cdn/1.mp3", AudioFile: "audio/science-vs-episode-one.mp3",
+				BackedUp: true},
+		},
+	}}}
+	if err := existing.Save(workDir); err != nil {
+		t.Fatalf("could not write pre-existing manifest: %v", err)
+	}
+
+	parser := &fakeParser{feeds: map[string]*feed.ParsedFeed{
+		feedURL: {
+			ShowTitle: "Science Vs",
+			Episodes: []feed.ParsedEpisode{
+				{Title: "Episode One", AudioURL: "https://cdn/1.mp3", AudioType: "audio/mpeg"},
+				{Title: "Episode Two", AudioURL: "https://cdn/2.mp3", AudioType: "audio/mpeg"},
+			},
+		},
+	}}
+	dl := &fakeDownloader{}
+
+	svc := New(testConfig(workDir, feedURL), parser, dl)
+	if err := svc.Run(context.Background()); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	// Only Episode Two should have been downloaded.
+	if len(dl.got) != 1 || dl.got[0] != "https://cdn/2.mp3" {
+		t.Errorf("expected only episode two download, got %v", dl.got)
+	}
+
+	m, _ := manifest.Load(workDir)
+	if len(m.Podcasts[0].Episodes) != 2 {
+		t.Fatalf("expected 2 episodes in manifest (1 carried + 1 new), got %d", len(m.Podcasts[0].Episodes))
+	}
+	// The backed-up episode should still be backed-up in the new manifest.
+	var backedUpCount int
+	for _, ep := range m.Podcasts[0].Episodes {
+		if ep.BackedUp {
+			backedUpCount++
+		}
+	}
+	if backedUpCount != 1 {
+		t.Errorf("expected 1 backed-up episode carried forward, got %d", backedUpCount)
+	}
+}
+
+func TestLoadDoneEpisodes_EmptyOnMissingManifest(t *testing.T) {
+	done := loadDoneEpisodes(t.TempDir())
+	if len(done) != 0 {
+		t.Errorf("expected empty done set for missing manifest, got %d entries", len(done))
+	}
+}
