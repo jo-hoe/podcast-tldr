@@ -74,7 +74,10 @@ class FasterWhisperTranscriber(Transcriber):
 
     def transcribe(self, audio_path: str) -> TranscriptionResult:
         model = self._load_model()
-        raw_segments, info = model.transcribe(audio_path)
+        kwargs: dict[str, object] = {}
+        if self._config.language:
+            kwargs["language"] = self._config.language
+        raw_segments, info = model.transcribe(audio_path, **kwargs)
 
         segments = [
             Segment(start=float(s.start), end=float(s.end), text=s.text.strip())

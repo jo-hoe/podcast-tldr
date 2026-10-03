@@ -53,6 +53,7 @@ class Config:
     compute_type: str = "int8"
     output_format: str = "json"
     max_parallel_episodes: int = 1
+    language: str = ""  # force transcription language (e.g. "en"); empty = auto-detect
 
 
 def resolve_path() -> str:
@@ -96,6 +97,7 @@ def _from_mapping(data: dict[str, Any]) -> Config:
         compute_type=_str(data, "computeType", defaults.compute_type),
         output_format=_str(data, "outputFormat", defaults.output_format),
         max_parallel_episodes=_int(data, "maxParallelEpisodes", defaults.max_parallel_episodes),
+        language=_str(data, "language", defaults.language),
     )
     # Allow WHISPER_MAX_PARALLEL_EPISODES env var to override config (e.g. from Argo parameter).
     env_parallel = os.environ.get(ENV_MAX_PARALLEL_EPISODES, "").strip()

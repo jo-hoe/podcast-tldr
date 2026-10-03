@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -138,6 +139,7 @@ func (s *Service) collectPodcast(ctx context.Context, feedCfg config.Feed, done 
 
 // downloadAll downloads every episode's audio concurrently, bounded by
 // MaxParallelDownloads. On failure it clears AudioFile so the episode is dropped.
+// Episodes whose audio file already exists on disk are skipped.
 func (s *Service) downloadAll(ctx context.Context, episodes []manifest.Episode) {
 	sem := make(chan struct{}, s.cfg.MaxParallelDownloads)
 	var wg sync.WaitGroup
@@ -150,6 +152,13 @@ func (s *Service) downloadAll(ctx context.Context, episodes []manifest.Episode) 
 			defer func() { <-sem }()
 
 			dest := filepath.Join(s.cfg.WorkDir, filepath.FromSlash(ep.AudioFile))
+
+			// Skip if already downloaded (e.g. pipeline restart).
+			if _, err := os.Stat(dest); err == nil {
+				slog.Info("already downloaded, skipping", "id", ep.ID, "file", ep.AudioFile)
+				return
+			}
+
 			if err := s.downloader.Download(ctx, ep.AudioURL, dest); err != nil {
 				slog.Error("download failed", "id", ep.ID, "url", ep.AudioURL, "err", err)
 				ep.AudioFile = ""

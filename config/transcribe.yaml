@@ -1,20 +1,16 @@
 logLevel: info
 workDir: /app/mount/work
 # Model size: tiny, base, small, medium, large-v2, large-v3.
-# Larger models are more accurate but slower. large-v3 is best quality.
 modelName: base
 modelCachePath: /app/mount/models
-# device: cpu   → works everywhere; ~2 min/episode for a 45-min audio on a modern CPU.
-# device: cuda  → requires nvidia-container-toolkit + CUDA 12.x GPU; ~10-20x faster.
+# device: cpu → works everywhere; device: cuda → 10-20x faster with CUDA 12.x GPU.
 device: cpu
-# computeType:
-#   int8       → fastest on CPU; minor accuracy trade-off.
-#   float16    → recommended for CUDA (native GPU precision).
-#   int8_float16 → good balance on CUDA if VRAM is limited.
+# int8 fastest on CPU; float16 recommended for CUDA.
 computeType: int8
 outputFormat: json
-# maxParallelEpisodes: number of episodes to transcribe concurrently.
-# On CPU: each Whisper instance uses multiple threads internally. Values above
-# the number of physical cores bring diminishing returns. Sensible range: 1-4.
-# On CUDA: keep at 1 (GPU parallelism is handled internally by CTranslate2).
+# language: force transcription language (e.g. "en"). Empty = auto-detect.
+# Set to avoid mis-detection on podcasts with a known language.
+language: ""
+# maxParallelEpisodes: concurrent transcriptions (1=sequential).
+# On CPU: sensible range 1-4 depending on cores. On CUDA: keep at 1.
 maxParallelEpisodes: 1
