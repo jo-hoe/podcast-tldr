@@ -4,9 +4,13 @@
 # reading the episodes.yaml the previous stage wrote. `depends_on` with
 # `condition: service_completed_successfully` sequences the run-once stages.
 #
-# The images are pulled from ghcr.io by default; to run locally built images,
-# build each stage repo and override the `image:` (or add `build:` with the repo
-# path). LiteLLM runs as a long-lived sidecar the summarize stage talks to.
+# Serial mode (all episodes):
+#   docker compose up -d download transcribe summarize zip backup
+#
+# Fan-out mode (per-episode parallel chains, incremental archive commits):
+#   bash scripts/fan-out.sh [MAX_PARALLEL]
+#
+# Each stage supports EPISODE_ID env var for fan-out — empty = process all.
 
 services:
   download:
@@ -25,6 +29,8 @@ services:
       - "./volume/models:/app/mount/models"
     environment:
       CONFIG_PATH: /app/config/config.yaml
+      # Set EPISODE_ID to process a single episode (fan-out mode); empty = all.
+      EPISODE_ID: "${EPISODE_ID:-}"
     # Request the NVIDIA GPU runtime when available. Requires:
     #   - nvidia-container-toolkit installed on the host
     #   - Docker daemon configured with the nvidia runtime
@@ -48,6 +54,7 @@ services:
       - "./volume/work:/app/mount/work"
     environment:
       CONFIG_PATH: /app/config/config.yaml
+      EPISODE_ID: "${EPISODE_ID:-}"
       # Not required: config/summarize.yaml points at the keyless ai-proxy. Only
       # set this if you switch baseURL to the litellm sidecar with a master key.
       LITELLM_API_KEY: "${LITELLM_API_KEY:-none}"
@@ -62,6 +69,7 @@ services:
       - "./volume/work:/app/mount/work"
     environment:
       CONFIG_PATH: /app/config/config.yaml
+      EPISODE_ID: "${EPISODE_ID:-}"
     depends_on:
       summarize:
         condition: service_completed_successfully
@@ -73,6 +81,7 @@ services:
       - "./volume/work:/app/mount/work"
     environment:
       CONFIG_PATH: /app/config/config.yaml
+      EPISODE_ID: "${EPISODE_ID:-}"
       PODCAST_TLDR_BACKUP_TOKEN: "${PODCAST_TLDR_BACKUP_TOKEN:-}"
     depends_on:
       zip:

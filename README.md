@@ -144,32 +144,50 @@ bundled LiteLLM sidecar (`http://litellm:4000/v1`) and configure it in
 
 ## Deployment Options
 
-### Docker Compose (local, end-to-end)
+Two execution modes are supported in all environments:
 
-See [Quickstart](#quickstart) for the minimal run. Runs all five stages in order on
-a shared `./volume/work`. Summarization talks to the keyless, OpenAI-compatible
-[ai-proxy](https://github.com/jo-hoe/ai-proxy)
-(`https://ai-proxy.johoe.duckdns.org/openai/v1`, model `gpt-5`) — no LLM key needed.
-An optional LiteLLM sidecar is included if you prefer to route through it instead.
+| Mode | Description | Archive commits |
+|------|-------------|-----------------|
+| **Serial** | All episodes processed stage-by-stage (download all → transcribe all → …) | One batch at the end |
+| **Fan-out** | Each episode flows independently (download → per-episode: transcribe→summarize→zip→backup) | One commit per episode as it completes |
+
+Fan-out is recommended for large backlogs and incremental indexing.
+
+### Docker Compose (local)
+
+**Serial** — see [Quickstart](#quickstart).
+
+**Fan-out:**
+
+```bash
+export PODCAST_TLDR_BACKUP_TOKEN="$(gh auth token)"
+bash scripts/fan-out.sh [MAX_PARALLEL]   # default: 4 parallel episode chains
+# or: make run-fanout-compose
+```
+
+Each episode commits to the archive as soon as its backup step completes.
 
 ### Kubernetes — plain Jobs
 
 ```bash
-# Deploy shared resources using ghcr.io images (any cluster):
+# Deploy shared resources:
 make deploy-plain
-
-# Create the pipeline secret (archive repo URL stays out of ConfigMaps):
 export PODCAST_TLDR_BACKUP_REPO=https://github.com/you/your-archive.git
-make create-secret   # uses gh auth token for backupToken by default
+make create-secret
 
-# Run the five stages in order:
+# Serial (all episodes, stage by stage):
 make run-jobs        # applies k8s/10-jobs.yaml; wait for each Job to complete
+
+# Fan-out (per-episode parallel Jobs, incremental commits):
+make run-fanout-jobs [PARALLELISM=4]   # generates per-episode Jobs via scripts/k8s-fanout.sh
 ```
 
 ### Kubernetes — Argo Workflows
 
-The [`argo/`](./argo) `WorkflowTemplate` chains the stages as a DAG over the shared
-work PVC, with a configurable `parallelism` limit.
+The [`argo/`](./argo) `WorkflowTemplate` runs in **fan-out mode by default** — after
+download, a scatter step emits episode IDs and the per-episode DAG
+(transcribe→summarize→zip→backup) runs for each ID in parallel, bounded by `parallelism`.
+Each episode commits to the archive as soon as it completes.
 
 ```bash
 make install-argo           # install Argo + patch UI to no-auth mode (dev)

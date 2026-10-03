@@ -64,8 +64,16 @@ deploy-plain: ## apply shared resources using ghcr.io images (non-k3d clusters)
 	@echo "  make create-secret PODCAST_TLDR_BACKUP_REPO=https://github.com/you/archive.git"
 
 .PHONY: run-jobs
-run-jobs: ## run the pipeline as plain sequential k8s Jobs
+run-jobs: ## run the pipeline as plain sequential k8s Jobs (serial, all episodes)
 	@kubectl apply -f ${ROOT_DIR}k8s/10-jobs.yaml
+
+.PHONY: run-fanout-jobs
+run-fanout-jobs: ## run per-episode fan-out Jobs in k8s (incremental archive commits)
+	@bash ${ROOT_DIR}scripts/k8s-fanout.sh
+
+.PHONY: run-fanout-compose
+run-fanout-compose: ## run per-episode fan-out locally via docker compose
+	@bash ${ROOT_DIR}scripts/fan-out.sh
 
 .PHONY: install-argo
 install-argo: ## install Argo Workflows into the cluster (UI auth disabled for dev)

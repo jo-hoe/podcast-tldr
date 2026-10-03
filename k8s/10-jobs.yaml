@@ -1,14 +1,24 @@
-# Plain Kubernetes Jobs for the pipeline — an alternative to the Argo workflow for
-# clusters without Argo. Apply them in order (each stage reads what the previous
-# wrote to the shared work PVC), or use Argo (../argo) to orchestrate ordering
-# automatically. Prerequisites: 00-pvc, 01-configmap, 02-secrets, 03-litellm.
+# Plain Kubernetes Jobs for the pipeline.
 #
-#   kubectl apply -f k8s/00-pvc.yaml -f k8s/01-configmap.yaml \
-#     -f k8s/02-secrets.example.yaml -f k8s/03-litellm.yaml
-#   kubectl apply -f k8s/10-jobs.yaml   # then watch each Job complete in order
+# Two modes:
 #
-# For strict sequencing without Argo, apply/wait one Job at a time:
-#   kubectl wait --for=condition=complete job/rss-audio-downloader --timeout=1h
+# Serial (all episodes, default):
+#   kubectl apply -f k8s/10-jobs.yaml
+#   kubectl wait --for=condition=complete job/rss-audio-downloader --timeout=2h
+#   # ... repeat wait for each stage ...
+#
+# Fan-out (per-episode parallel chains, incremental archive commits):
+#   Use Argo Workflows — see argo/workflow-template.yaml and `make run-argo`.
+#   Argo's withParam fans out over episode IDs after download.
+#
+#   Alternatively, generate per-episode Jobs with the helper script:
+#   bash scripts/k8s-fanout.sh [PARALLELISM]
+#
+# Each stage passes EPISODE_ID through to the container. When empty (default),
+# the stage processes all episodes. When set, only that episode is processed.
+# This is the same env var used by the Argo fan-out and compose fan-out.
+#
+# Prerequisites: 00-pvc, 01-configmap, 02-secrets (with backupRepoURL), 03-litellm.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -42,7 +52,10 @@ spec:
       containers:
         - name: transcribe
           image: ghcr.io/jo-hoe/podcast-tldr/whisper-transcriber:latest
-          env: [{ name: CONFIG_PATH, value: /app/config/transcribe.yaml }]
+          env:
+            - { name: CONFIG_PATH, value: /app/config/transcribe.yaml }
+            # Set EPISODE_ID to process a single episode; empty = all (serial mode).
+            - { name: EPISODE_ID, value: "" }
           resources:
             requests: { cpu: "500m", memory: 2Gi }
             limits: { cpu: "2", memory: 4Gi }
@@ -75,6 +88,7 @@ spec:
           image: ghcr.io/jo-hoe/podcast-tldr/llm-summarizer:latest
           env:
             - { name: CONFIG_PATH, value: /app/config/summarize.yaml }
+            - { name: EPISODE_ID, value: "" }
             - name: LITELLM_API_KEY
               valueFrom: { secretKeyRef: { name: podcast-tldr-secrets, key: litellmApiKey } }
           volumeMounts:
@@ -97,7 +111,9 @@ spec:
       containers:
         - name: zip
           image: ghcr.io/jo-hoe/podcast-tldr/artifact-zipper:latest
-          env: [{ name: CONFIG_PATH, value: /app/config/zip.yaml }]
+          env:
+            - { name: CONFIG_PATH, value: /app/config/zip.yaml }
+            - { name: EPISODE_ID, value: "" }
           volumeMounts:
             - { name: work, mountPath: /app/mount/work }
             - { name: config, mountPath: /app/config, readOnly: true }
@@ -120,6 +136,7 @@ spec:
           image: ghcr.io/jo-hoe/podcast-tldr/git-archive-backup:latest
           env:
             - { name: CONFIG_PATH, value: /app/config/backup.yaml }
+            - { name: EPISODE_ID, value: "" }
             - name: PODCAST_TLDR_BACKUP_TOKEN
               valueFrom: { secretKeyRef: { name: podcast-tldr-secrets, key: backupToken } }
             - name: PODCAST_TLDR_BACKUP_REPO
