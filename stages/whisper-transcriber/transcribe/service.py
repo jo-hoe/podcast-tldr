@@ -117,6 +117,20 @@ class TranscribeService:
             logger.error("audio file missing: id=%s path=%s", episode.id, audio_path)
             return False
 
+        # Skip if transcript already on disk — allows resuming an interrupted run.
+        # The manifest fields will be set/updated regardless.
+        rel_transcript = episode.transcript_path("json")
+        transcript_path = Path(self._config.work_dir) / _to_os_path(rel_transcript)
+        if transcript_path.exists():
+            logger.info("transcript already exists, skipping: id=%s", episode.id)
+            # Still update manifest fields so downstream stages can proceed.
+            episode.transcript_file = rel_transcript
+            if not episode.language:
+                episode.language = "en"  # assume; avoid re-transcribing just for language
+            if not episode.transcribe_model:
+                episode.transcribe_model = self._config.model_name
+            return True
+
         try:
             result = transcriber.transcribe(str(audio_path))
         except Exception as exc:  # noqa: BLE001 - isolate per-episode failures
