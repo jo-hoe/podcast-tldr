@@ -117,11 +117,10 @@ class TranscribeService:
             logger.error("audio file missing: id=%s path=%s", episode.id, audio_path)
             return False
 
-        # Skip if transcript already on disk — allows resuming an interrupted run.
-        # The manifest fields will be set/updated regardless.
+        # Skip if transcript already on disk and valid — allows resuming interrupted runs.
         rel_transcript = episode.transcript_path("json")
         transcript_path = Path(self._config.work_dir) / _to_os_path(rel_transcript)
-        if transcript_path.exists():
+        if transcript_path.exists() and _transcript_is_valid(transcript_path):
             logger.info("transcript already exists, skipping: id=%s", episode.id)
             # Still update manifest fields so downstream stages can proceed.
             episode.transcript_file = rel_transcript
@@ -153,6 +152,16 @@ class TranscribeService:
             json.dumps(_result_to_dict(result), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+
+def _transcript_is_valid(path: Path) -> bool:
+    """Return True if the transcript file is a valid, non-empty JSON transcript."""
+    try:
+        import json
+        d = json.loads(path.read_text(encoding="utf-8"))
+        return bool(d.get("text")) and bool(d.get("segments"))
+    except Exception:
+        return False
 
 
 def _result_to_dict(result: TranscriptionResult) -> dict:
