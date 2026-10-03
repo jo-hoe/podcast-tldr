@@ -31,22 +31,33 @@ TranscriberFactory = Callable[[], Transcriber]
 class TranscribeService:
     """Runs the transcribe stage using an injected :class:`TranscriberFactory`."""
 
-    def __init__(self, config: Config, transcriber_factory: TranscriberFactory) -> None:
+    def __init__(
+        self,
+        config: Config,
+        transcriber_factory: TranscriberFactory,
+        episode_id: str | None = None,
+    ) -> None:
         self._config = config
         self._factory = transcriber_factory
+        self._episode_id = episode_id  # None = process all; set = single-episode mode
 
     def run(self) -> None:
         """Transcribe every eligible episode and write the manifest back.
 
-        Per-episode failures are logged and skipped so one bad episode does not
-        abort the whole run. When ``max_parallel_episodes > 1`` a thread pool is
-        used; each worker owns its own Transcriber to avoid shared-state issues.
+        When ``episode_id`` is set, only that episode is processed (fan-out mode).
+        Per-episode failures are logged and skipped. When ``max_parallel_episodes > 1``
+        a thread pool is used; each worker owns its own Transcriber.
         """
         manifest = manifest_module.load(self._config.work_dir)
         episodes = list(manifest.iter_episodes())
 
+        if self._episode_id:
+            episodes = [ep for ep in episodes if ep.id == self._episode_id]
+            if not episodes:
+                logger.warning("episode not found in manifest: id=%s", self._episode_id)
+
         workers = max(1, self._config.max_parallel_episodes)
-        if workers == 1:
+        if workers == 1 or len(episodes) == 1:
             results = [self._process_episode_threadsafe(ep) for ep in episodes]
         else:
             logger.info("transcribing with %d parallel workers", workers)

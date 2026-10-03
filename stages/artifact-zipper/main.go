@@ -26,7 +26,7 @@ func main() {
 	}
 	initLogger(parseLogLevel(cfg.LogLevel))
 
-	svc := service.New(cfg, archive.NewZipWriter())
+	svc := service.New(cfg, archive.NewZipWriter(), os.Getenv("EPISODE_ID"))
 	if err := svc.Run(); err != nil {
 		slog.Error("zip stage failed", "err", err)
 		os.Exit(1)

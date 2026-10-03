@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 
 from transcribe.config import ConfigError, load_config, resolve_path
@@ -18,6 +19,9 @@ _LOG_LEVELS = {
     "warning": logging.WARNING,
     "error": logging.ERROR,
 }
+
+# Env var for single-episode fan-out mode (consistent with Go stages using EPISODE_ID).
+_ENV_EPISODE_ID = "EPISODE_ID"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,7 +44,11 @@ def main(argv: list[str] | None = None) -> int:
         config.compute_type,
     )
 
-    service = TranscribeService(config, lambda: FasterWhisperTranscriber(config))
+    service = TranscribeService(
+        config,
+        lambda: FasterWhisperTranscriber(config),
+        episode_id=args.episode_id or os.environ.get(_ENV_EPISODE_ID) or None,
+    )
     try:
         service.run()
     except ManifestError as exc:
@@ -58,6 +66,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--config",
         default=None,
         help="Path to config.yaml (overrides the CONFIG_PATH env var).",
+    )
+    parser.add_argument(
+        "--episode-id",
+        default=None,
+        metavar="ID",
+        help="Process only this episode ID (default: process all eligible episodes).",
     )
     return parser.parse_args(argv)
 

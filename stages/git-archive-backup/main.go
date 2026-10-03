@@ -26,7 +26,7 @@ func main() {
 	}
 	initLogger(parseLogLevel(cfg.LogLevel))
 
-	svc := service.New(cfg, openRepository)
+	svc := service.New(cfg, openRepository, os.Getenv("EPISODE_ID"))
 	if err := svc.Run(); err != nil {
 		slog.Error("backup stage failed", "err", err)
 		os.Exit(1)

@@ -25,13 +25,15 @@ const bundleMetadataName = "metadata.yaml"
 // Service runs the zip stage. Its archive.Writer dependency is injected so the
 // stage can be exercised without a real zip file when desired.
 type Service struct {
-	cfg    *config.Config
-	writer archive.Writer
+	cfg       *config.Config
+	writer    archive.Writer
+	episodeID string // when non-empty, only this episode is processed
 }
 
 // New constructs a Service.
-func New(cfg *config.Config, writer archive.Writer) *Service {
-	return &Service{cfg: cfg, writer: writer}
+// episodeID may be empty to process all eligible episodes.
+func New(cfg *config.Config, writer archive.Writer, episodeID string) *Service {
+	return &Service{cfg: cfg, writer: writer, episodeID: episodeID}
 }
 
 // bundleMetadata is the traceability record embedded in each bundle. It links the
@@ -69,7 +71,11 @@ func (s *Service) Run() error {
 	for pi := range m.Podcasts {
 		podcast := &m.Podcasts[pi]
 		for ei := range podcast.Episodes {
-			if s.bundleEpisode(podcast, &podcast.Episodes[ei]) {
+			ep := &podcast.Episodes[ei]
+			if s.episodeID != "" && ep.ID != s.episodeID {
+				continue
+			}
+			if s.bundleEpisode(podcast, ep) {
 				bundled++
 			}
 		}

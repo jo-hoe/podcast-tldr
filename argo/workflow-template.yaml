@@ -1,16 +1,19 @@
-# Argo WorkflowTemplate chaining the podcast-tldr pipeline A -> B -> C -> D -> E.
+# Argo WorkflowTemplate — fan-out pipeline.
 #
-# All stages share one ReadWriteMany PVC (`podcast-tldr-work`) mounted at
-# /app/mount/work, so each stage reads the episodes.yaml the previous stage wrote.
-# The DAG enforces ordering.
+# After download, a scatter step reads episodes.yaml and emits the list of
+# episode IDs needing work. The per-episode DAG then runs for each ID in
+# parallel (bounded by `parallelism`), giving incremental archive commits
+# as each episode completes rather than waiting for all 347 to finish.
 #
-# Configurable parameters:
-#   workPvc              — name of the shared work PVC (default: podcast-tldr-work)
-#   maxParallelEpisodes  — how many episodes the transcribe stage processes in parallel
-#                          (default: 1; raise to 2-4 on a multi-core CPU host)
+# Pipeline shape:
+#   download -> scatter -> [per-episode: transcribe -> summarize -> zip -> backup] x N
 #
-# Prerequisites (apply once): the work PVC, ConfigMap, Secret, and LiteLLM
-# Deployment from ./k8s.
+# Prerequisites: PVC (00-pvc), ConfigMap (01-configmap), Secret (02-secrets),
+#   LiteLLM (03-litellm) from ./k8s.
+#
+# Submit:
+#   argo submit -n argo argo/workflow-run.yaml --watch
+#   argo submit -n argo argo/workflow-run.yaml -p parallelism=8 --watch
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -21,8 +24,10 @@ spec:
     parameters:
       - name: workPvc
         value: podcast-tldr-work
-      - name: maxParallelEpisodes
-        value: "1"
+      # Maximum number of per-episode chains running simultaneously.
+      # Raise on a beefy machine; lower if memory is constrained.
+      - name: parallelism
+        value: "4"
   volumes:
     - name: work
       persistentVolumeClaim:
@@ -35,28 +40,67 @@ spec:
         claimName: podcast-tldr-models
 
   templates:
+
+    # ── Top-level pipeline ──────────────────────────────────────────────────
     - name: pipeline
       dag:
         tasks:
           - name: download
             template: stage-download
-          - name: transcribe
-            template: stage-transcribe
+
+          - name: scatter
+            template: scatter-episodes
             dependencies: [download]
+
+          - name: process-episodes
+            template: per-episode
+            dependencies: [scatter]
+            withParam: "{{tasks.scatter.outputs.result}}"
             arguments:
               parameters:
-                - name: maxParallelEpisodes
-                  value: "{{workflow.parameters.maxParallelEpisodes}}"
+                - name: episodeId
+                  value: "{{item}}"
+
+    # ── Per-episode sub-DAG ─────────────────────────────────────────────────
+    - name: per-episode
+      parallelism: "{{workflow.parameters.parallelism}}"
+      inputs:
+        parameters:
+          - name: episodeId
+      dag:
+        tasks:
+          - name: transcribe
+            template: stage-transcribe
+            arguments:
+              parameters:
+                - name: episodeId
+                  value: "{{inputs.parameters.episodeId}}"
+
           - name: summarize
             template: stage-summarize
             dependencies: [transcribe]
+            arguments:
+              parameters:
+                - name: episodeId
+                  value: "{{inputs.parameters.episodeId}}"
+
           - name: zip
             template: stage-zip
             dependencies: [summarize]
+            arguments:
+              parameters:
+                - name: episodeId
+                  value: "{{inputs.parameters.episodeId}}"
+
           - name: backup
             template: stage-backup
             dependencies: [zip]
+            arguments:
+              parameters:
+                - name: episodeId
+                  value: "{{inputs.parameters.episodeId}}"
 
+    # ── Stage templates ─────────────────────────────────────────────────────
     - name: stage-download
       container:
         image: ghcr.io/jo-hoe/podcast-tldr/rss-audio-downloader:latest
@@ -67,29 +111,57 @@ spec:
           - { name: work, mountPath: /app/mount/work }
           - { name: config, mountPath: /app/config, readOnly: true }
 
+    - name: scatter-episodes
+      script:
+        image: python:3.12-slim
+        command: [python3]
+        source: |
+          import json, sys
+          from pathlib import Path
+          import yaml
+          work_dir = Path("/app/mount/work")
+          data = yaml.safe_load((work_dir / "episodes.yaml").read_text()) or {}
+          ids = [
+              ep["id"]
+              for pod in data.get("podcasts", [])
+              for ep in pod.get("episodes", [])
+              if ep.get("audioFile") and not ep.get("backedUp", False)
+          ]
+          print(json.dumps(ids))
+        volumeMounts:
+          - { name: work, mountPath: /app/mount/work }
+        resources:
+          requests: { cpu: "100m", memory: 64Mi }
+
     - name: stage-transcribe
       inputs:
         parameters:
-          - name: maxParallelEpisodes
+          - name: episodeId
       container:
         image: ghcr.io/jo-hoe/podcast-tldr/whisper-transcriber:latest
+        command: ["python3.12", "/app/main.py", "--episode-id", "{{inputs.parameters.episodeId}}"]
         env:
           - name: CONFIG_PATH
             value: /app/config/transcribe.yaml
-          # Override parallelism at runtime without changing the ConfigMap.
-          - name: WHISPER_MAX_PARALLEL_EPISODES
-            value: "{{inputs.parameters.maxParallelEpisodes}}"
         volumeMounts:
           - { name: work, mountPath: /app/mount/work }
           - { name: models, mountPath: /app/mount/models }
           - { name: config, mountPath: /app/config, readOnly: true }
+        resources:
+          requests: { cpu: "2", memory: 2Gi }
+          limits: { cpu: "4", memory: 4Gi }
 
     - name: stage-summarize
+      inputs:
+        parameters:
+          - name: episodeId
       container:
         image: ghcr.io/jo-hoe/podcast-tldr/llm-summarizer:latest
         env:
           - name: CONFIG_PATH
             value: /app/config/summarize.yaml
+          - name: EPISODE_ID
+            value: "{{inputs.parameters.episodeId}}"
           - name: LITELLM_API_KEY
             valueFrom:
               secretKeyRef: { name: podcast-tldr-secrets, key: litellmApiKey }
@@ -98,21 +170,31 @@ spec:
           - { name: config, mountPath: /app/config, readOnly: true }
 
     - name: stage-zip
+      inputs:
+        parameters:
+          - name: episodeId
       container:
         image: ghcr.io/jo-hoe/podcast-tldr/artifact-zipper:latest
         env:
           - name: CONFIG_PATH
             value: /app/config/zip.yaml
+          - name: EPISODE_ID
+            value: "{{inputs.parameters.episodeId}}"
         volumeMounts:
           - { name: work, mountPath: /app/mount/work }
           - { name: config, mountPath: /app/config, readOnly: true }
 
     - name: stage-backup
+      inputs:
+        parameters:
+          - name: episodeId
       container:
         image: ghcr.io/jo-hoe/podcast-tldr/git-archive-backup:latest
         env:
           - name: CONFIG_PATH
             value: /app/config/backup.yaml
+          - name: EPISODE_ID
+            value: "{{inputs.parameters.episodeId}}"
           - name: PODCAST_TLDR_BACKUP_TOKEN
             valueFrom:
               secretKeyRef: { name: podcast-tldr-secrets, key: backupToken }

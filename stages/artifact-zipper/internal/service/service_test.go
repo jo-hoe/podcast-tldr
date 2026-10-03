@@ -78,7 +78,7 @@ func zipEntryNames(t *testing.T, path string) map[string]string {
 func TestRun_BundleContainsTranscriptAndMetadataNotSummary(t *testing.T) {
 	workDir, ep := setupWorkDir(t, true)
 
-	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter())
+	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter(), "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestRun_BundleContainsTranscriptAndMetadataNotSummary(t *testing.T) {
 func TestRun_SummaryRemainsUnzippedOnDisk(t *testing.T) {
 	workDir, ep := setupWorkDir(t, true)
 
-	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter())
+	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter(), "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestRun_SummaryRemainsUnzippedOnDisk(t *testing.T) {
 func TestRun_SetsBundleFileOnManifest(t *testing.T) {
 	workDir, ep := setupWorkDir(t, true)
 
-	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter())
+	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter(), "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestRun_SetsBundleFileOnManifest(t *testing.T) {
 func TestRun_SkipsEpisodeWithoutTranscript(t *testing.T) {
 	workDir, ep := setupWorkDir(t, false)
 
-	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter())
+	svc := New(&config.Config{WorkDir: workDir}, archive.NewZipWriter(), "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestRun_SkipsEpisodeWithoutTranscript(t *testing.T) {
 }
 
 func TestRun_MissingManifestIsError(t *testing.T) {
-	svc := New(&config.Config{WorkDir: t.TempDir()}, archive.NewZipWriter())
+	svc := New(&config.Config{WorkDir: t.TempDir()}, archive.NewZipWriter(), "")
 	if err := svc.Run(); err == nil {
 		t.Fatal("expected error when manifest is missing, got nil")
 	}

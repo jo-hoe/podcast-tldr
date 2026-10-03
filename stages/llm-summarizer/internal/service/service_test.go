@@ -75,7 +75,7 @@ func newService(t *testing.T, workDir string, client llm.Client) *Service {
 		MaxTokens:   256,
 		Temperature: 0.3,
 	}
-	return New(cfg, client, &prompt.Template{Instruction: "Summarize."})
+	return New(cfg, client, &prompt.Template{Instruction: "Summarize."}, "")
 }
 
 // captureChatServer records the decoded request body of the first chat-completion
@@ -113,7 +113,7 @@ func runOnceCapturing(t *testing.T, cfg *config.Config) map[string]any {
 
 	var captured map[string]any
 	srv := captureChatServer(t, "summary text", &captured)
-	svc := New(cfg, llm.NewOpenAIClient(srv.URL, ""), &prompt.Template{Instruction: "Summarize."})
+	svc := New(cfg, llm.NewOpenAIClient(srv.URL, ""), &prompt.Template{Instruction: "Summarize."}, "")
 	if err := svc.Run(context.Background()); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestRun_UserMessageIncludesMetadataAndDelimitedTranscript(t *testing.T) {
 
 	var captured map[string]any
 	srv := captureChatServer(t, "report", &captured)
-	svc := New(cfg, llm.NewOpenAIClient(srv.URL, ""), &prompt.Template{Instruction: "Write a report."})
+	svc := New(cfg, llm.NewOpenAIClient(srv.URL, ""), &prompt.Template{Instruction: "Write a report."}, "")
 	if err := svc.Run(context.Background()); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}

@@ -19,14 +19,16 @@ import (
 // Service runs the summarize stage. Dependencies are injected so the stage can be
 // exercised in tests without a real LLM endpoint.
 type Service struct {
-	cfg      *config.Config
-	client   llm.Client
-	template *prompt.Template
+	cfg       *config.Config
+	client    llm.Client
+	template  *prompt.Template
+	episodeID string // when non-empty, only this episode is processed
 }
 
 // New constructs a Service with a loaded prompt template.
-func New(cfg *config.Config, client llm.Client, template *prompt.Template) *Service {
-	return &Service{cfg: cfg, client: client, template: template}
+// episodeID may be empty to process all eligible episodes.
+func New(cfg *config.Config, client llm.Client, template *prompt.Template, episodeID string) *Service {
+	return &Service{cfg: cfg, client: client, template: template, episodeID: episodeID}
 }
 
 // Run loads the manifest, summarizes every eligible episode, and writes the
@@ -43,7 +45,11 @@ func (s *Service) Run(ctx context.Context) error {
 	for pi := range m.Podcasts {
 		pod := &m.Podcasts[pi]
 		for ei := range pod.Episodes {
-			if s.summarizeEpisode(ctx, pod, &pod.Episodes[ei]) {
+			ep := &pod.Episodes[ei]
+			if s.episodeID != "" && ep.ID != s.episodeID {
+				continue
+			}
+			if s.summarizeEpisode(ctx, pod, ep) {
 				summarized++
 			}
 		}

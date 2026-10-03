@@ -35,7 +35,7 @@ func main() {
 	}
 
 	client := llm.NewOpenAIClient(cfg.BaseURL, cfg.APIKey())
-	svc := service.New(cfg, client, template)
+	svc := service.New(cfg, client, template, os.Getenv("EPISODE_ID"))
 	if err := svc.Run(context.Background()); err != nil {
 		slog.Error("summarize stage failed", "err", err)
 		os.Exit(1)

@@ -92,7 +92,7 @@ func TestRun_StagesBundleAndSummary(t *testing.T) {
 		"summaries/ep-001.md": "# Summary",
 	})
 
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil }, "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestRun_SetsBackedUpAndSavesManifest(t *testing.T) {
 		"summaries/ep-001.md": "# Summary",
 	})
 
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil }, "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestRun_SkipsEpisodesWithoutBundle(t *testing.T) {
 	m := manifestWithEpisode("", "")
 	cfg, fake := setup(t, m, nil)
 
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil }, "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestRun_SkipsAlreadyBackedUp(t *testing.T) {
 		"summaries/ep-001.md": "# Summary",
 	})
 
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil }, "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestRun_BundleWithoutSummary(t *testing.T) {
 		"bundles/ep-001.zip": "ZIPDATA",
 	})
 
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil }, "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestRun_ToleratesNothingToCommit(t *testing.T) {
 	})
 	fake.commitErr = gitrepo.ErrNothingToCommit
 
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil }, "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run should tolerate ErrNothingToCommit, got: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestRun_ReturnsErrorWhenOpenerFails(t *testing.T) {
 	cfg, _ := setup(t, m, map[string]string{"bundles/ep-001.zip": "ZIPDATA"})
 
 	sentinel := errors.New("boom")
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return nil, sentinel })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return nil, sentinel }, "")
 	if err := svc.Run(); !errors.Is(err, sentinel) {
 		t.Fatalf("expected opener error to propagate, got %v", err)
 	}
@@ -232,7 +232,7 @@ func TestRun_CommitsAndPushesPerEpisode(t *testing.T) {
 		"bundles/ep-002.zip": "ZIP2",
 	})
 
-	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil })
+	svc := New(cfg, func(gitrepo.Options) (gitrepo.Repository, error) { return fake, nil }, "")
 	if err := svc.Run(); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}

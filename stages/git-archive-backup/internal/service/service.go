@@ -23,13 +23,15 @@ type Opener func(gitrepo.Options) (gitrepo.Repository, error)
 
 // Service runs the backup stage.
 type Service struct {
-	cfg    *config.Config
-	opener Opener
+	cfg       *config.Config
+	opener    Opener
+	episodeID string // when non-empty, only this episode is processed
 }
 
 // New constructs a Service.
-func New(cfg *config.Config, opener Opener) *Service {
-	return &Service{cfg: cfg, opener: opener}
+// episodeID may be empty to process all eligible episodes.
+func New(cfg *config.Config, opener Opener, episodeID string) *Service {
+	return &Service{cfg: cfg, opener: opener, episodeID: episodeID}
 }
 
 // Run backs up every not-yet-backed-up episode that has a bundle. Each episode
@@ -56,6 +58,9 @@ func (s *Service) Run() error {
 		podcast := &m.Podcasts[pi]
 		for ei := range podcast.Episodes {
 			ep := &podcast.Episodes[ei]
+			if s.episodeID != "" && ep.ID != s.episodeID {
+				continue
+			}
 			if !s.eligible(ep) {
 				continue
 			}
@@ -96,9 +101,12 @@ func (s *Service) backupEpisode(repo gitrepo.Repository, showTitle string, ep *m
 	return nil
 }
 
-// eligible reports whether an episode should be backed up: it must have a bundle
-// and not already be backed up.
+// eligible reports whether an episode should be backed up: it must have a bundle,
+// not already be backed up, and (when episodeID is set) match the target ID.
 func (s *Service) eligible(ep *manifest.Episode) bool {
+	if s.episodeID != "" && ep.ID != s.episodeID {
+		return false
+	}
 	return ep.BundleFile != "" && !ep.BackedUp
 }
 
