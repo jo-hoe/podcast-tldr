@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable
@@ -62,18 +61,25 @@ class TranscribeService:
         )
 
     def _run_parallel(self, episodes: list[Episode], workers: int) -> list[bool]:
-        """Transcribe episodes concurrently; each thread owns one Transcriber."""
-        # Thread-local storage so each thread creates exactly one model instance.
-        tls = threading.local()
+        """Transcribe episodes concurrently; each thread owns one Transcriber.
 
-        def worker(episode: Episode) -> bool:
-            if not hasattr(tls, "transcriber"):
-                tls.transcriber = self._factory()
-            return self._process_episode(episode, tls.transcriber)
+        Model instances are pre-loaded sequentially before the thread pool starts
+        to avoid tqdm/CTranslate2 thread-safety issues during model initialisation.
+        """
+        # Pre-create all transcriber instances sequentially to avoid concurrent
+        # CTranslate2/tqdm initialisation issues (disabled_tqdm._lock race).
+        transcribers = [self._factory() for _ in range(workers)]
+
+        def worker(args: tuple[int, Episode]) -> bool:
+            idx, episode = args
+            return self._process_episode(episode, transcribers[idx % workers])
 
         results: dict[int, bool] = {}
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(worker, ep): i for i, ep in enumerate(episodes)}
+            futures = {
+                pool.submit(worker, (i, ep)): i
+                for i, ep in enumerate(episodes)
+            }
             for future in as_completed(futures):
                 idx = futures[future]
                 try:
