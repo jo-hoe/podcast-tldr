@@ -71,6 +71,17 @@ func (s *Service) summarizeEpisode(ctx context.Context, pod *manifest.Podcast, e
 		return false
 	}
 
+	// Skip if summary already exists on disk — allows resuming interrupted runs.
+	summaryPath := filepath.Join(s.cfg.WorkDir, filepath.FromSlash(ep.SummaryPath()))
+	if _, err := os.Stat(summaryPath); err == nil {
+		slog.Info("summary already exists, skipping", "id", ep.ID)
+		ep.SummaryFile = ep.SummaryPath()
+		if ep.SummaryModel == "" {
+			ep.SummaryModel = s.cfg.Model
+		}
+		return true
+	}
+
 	transcriptPath := filepath.Join(s.cfg.WorkDir, filepath.FromSlash(ep.TranscriptFile))
 	transcript, err := prompt.TranscriptText(transcriptPath)
 	if err != nil {

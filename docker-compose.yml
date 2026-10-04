@@ -1,16 +1,15 @@
 # Full podcast-tldr pipeline, run locally end-to-end on a shared work volume.
 #
-# Stages run in order (A -> B -> C -> D -> E) against ./volume/work, each container
-# reading the episodes.yaml the previous stage wrote. `depends_on` with
-# `condition: service_completed_successfully` sequences the run-once stages.
+# Two modes:
 #
-# Serial mode (all episodes):
+# Fan-out mode (recommended) — each episode runs the full chain in parallel:
+#   docker compose up -d download orchestrator
+#   docker compose logs -f orchestrator
+#
+# Serial mode — all episodes processed stage-by-stage:
 #   docker compose up -d download transcribe summarize zip backup
 #
-# Fan-out mode (per-episode parallel chains, incremental archive commits):
-#   bash scripts/fan-out.sh [MAX_PARALLEL]
-#
-# Each stage supports EPISODE_ID env var for fan-out — empty = process all.
+# Each stage supports EPISODE_ID env var — empty = process all, set = single episode.
 
 services:
   download:
@@ -20,6 +19,26 @@ services:
       - "./volume/work:/app/mount/work"
     environment:
       CONFIG_PATH: /app/config/config.yaml
+
+  # Fan-out orchestrator: after download, fans out per-episode parallel chains
+  # (transcribe -> summarize -> zip -> backup) with configurable parallelism.
+  orchestrator:
+    build:
+      context: ./orchestrator
+    image: podcast-tldr-orchestrator:local
+    volumes:
+      - "./volume/work:/app/mount/work"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - ".:/repo:ro"
+    working_dir: /repo
+    environment:
+      WORK_DIR: /app/mount/work
+      MAX_PARALLEL: "${MAX_PARALLEL:-4}"
+      PODCAST_TLDR_BACKUP_TOKEN: "${PODCAST_TLDR_BACKUP_TOKEN:-}"
+      COMPOSE_FILES: "docker-compose.yml docker-compose.local.yml docker-compose.run.yml"
+    depends_on:
+      download:
+        condition: service_completed_successfully
 
   transcribe:
     image: ghcr.io/jo-hoe/podcast-tldr/whisper-transcriber:latest

@@ -11,6 +11,7 @@ package service
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 
 	"github.com/jo-hoe/artifact-zipper/internal/archive"
@@ -97,14 +98,21 @@ func (s *Service) bundleEpisode(podcast *manifest.Podcast, ep *manifest.Episode)
 		return false
 	}
 
+	// Skip if bundle already exists on disk — allows resuming interrupted runs.
+	bundleRel := ep.BundlePath()
+	dest := filepath.Join(s.cfg.WorkDir, filepath.FromSlash(bundleRel))
+	if _, err := os.Stat(dest); err == nil {
+		slog.Info("bundle already exists, skipping", "id", ep.ID)
+		ep.BundleFile = bundleRel
+		return true
+	}
+
 	entries, err := s.buildEntries(podcast, ep)
 	if err != nil {
 		slog.Error("failed to build bundle entries", "id", ep.ID, "err", err)
 		return false
 	}
 
-	bundleRel := ep.BundlePath()
-	dest := filepath.Join(s.cfg.WorkDir, filepath.FromSlash(bundleRel))
 	if err := s.writer.Write(dest, entries); err != nil {
 		slog.Error("failed to write bundle", "id", ep.ID, "err", err)
 		return false
