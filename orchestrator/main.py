@@ -48,19 +48,21 @@ def scatter(work_dir: str) -> list[str]:
 
 
 def compose_files() -> list[str]:
-    files = os.environ.get("COMPOSE_FILES", "").split()
-    if files:
-        return files
-    # Auto-detect from cwd
-    candidates = [
-        "docker-compose.yml",
-        "docker-compose.local.yml",
-        "docker-compose.run.yml",
-    ]
+    raw = os.environ.get("COMPOSE_FILES", "")
+    # Accept either space-separated filenames or pre-built "-f file" args
+    if "-f" in raw:
+        return raw.split()
+    files = raw.split() if raw else []
+    if not files:
+        candidates = [
+            "docker-compose.yml",
+            "docker-compose.local.yml",
+            "docker-compose.run.yml",
+        ]
+        files = [f for f in candidates if Path(f).exists()]
     result = []
-    for f in candidates:
-        if Path(f).exists():
-            result += ["-f", f]
+    for f in files:
+        result += ["-f", f]
     return result
 
 

@@ -22,12 +22,22 @@ services:
 
   # Fan-out orchestrator: after download, fans out per-episode parallel chains
   # (transcribe -> summarize -> zip -> backup) with configurable parallelism.
+  #
+  # Usage:
+  #   Linux/Mac:
+  #     docker compose up -d download orchestrator
+  #
+  #   Windows Docker Desktop — enable TCP in Settings > General >
+  #   "Expose daemon on tcp://localhost:2375 without TLS", then:
+  #     DOCKER_HOST=tcp://host.docker.internal:2375 \
+  #     docker compose up -d download orchestrator
   orchestrator:
     build:
       context: ./orchestrator
     image: podcast-tldr-orchestrator:local
     volumes:
       - "./volume/work:/app/mount/work"
+      # Linux/Mac: mount Docker socket
       - "/var/run/docker.sock:/var/run/docker.sock"
       - ".:/repo:ro"
     working_dir: /repo
@@ -35,7 +45,10 @@ services:
       WORK_DIR: /app/mount/work
       MAX_PARALLEL: "${MAX_PARALLEL:-4}"
       PODCAST_TLDR_BACKUP_TOKEN: "${PODCAST_TLDR_BACKUP_TOKEN:-}"
-      COMPOSE_FILES: "docker-compose.yml docker-compose.local.yml docker-compose.run.yml"
+      # Auto-detected from cwd; override if needed
+      COMPOSE_FILES: ""
+      # Pass through DOCKER_HOST for Windows TCP mode
+      DOCKER_HOST: "${DOCKER_HOST:-}"
     depends_on:
       download:
         condition: service_completed_successfully

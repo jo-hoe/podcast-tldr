@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# Install Docker CLI so the orchestrator can call `docker compose run`
+# Install Docker CLI + Compose plugin
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl ca-certificates \
     && install -m 0755 -d /etc/apt/keyrings \
@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py ./
 
-# The orchestrator needs the Docker socket and the compose files from the repo root.
-# Mount: /var/run/docker.sock, /app/mount/work, and the repo root as /repo.
+# Docker socket is mounted at runtime:
+#   Linux/Mac: -v /var/run/docker.sock:/var/run/docker.sock
+#   Windows Docker Desktop: -v //var/run/docker.sock://var/run/docker.sock
+#     (or use DOCKER_HOST=tcp://host.docker.internal:2375 if TCP is enabled)
 ENTRYPOINT ["python3", "/app/main.py"]

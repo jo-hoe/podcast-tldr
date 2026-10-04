@@ -72,8 +72,26 @@ run-fanout-jobs: ## run per-episode fan-out Jobs in k8s (incremental archive com
 	@bash ${ROOT_DIR}scripts/k8s-fanout.sh
 
 .PHONY: run-fanout-compose
-run-fanout-compose: ## run per-episode fan-out locally via docker compose
-	@bash ${ROOT_DIR}scripts/fan-out.sh
+run-fanout-compose: ## fan-out per-episode pipeline locally (download then parallel episode chains)
+	@echo "=== Step 1: Download ==="
+	@PODCAST_TLDR_BACKUP_TOKEN="$${PODCAST_TLDR_BACKUP_TOKEN:-$$(gh auth token)}" \
+	  docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.run.yml \
+	  run --rm download
+	@echo "=== Step 2: Fan-out (MAX_PARALLEL=$${MAX_PARALLEL:-4}) ==="
+	@PODCAST_TLDR_BACKUP_TOKEN="$${PODCAST_TLDR_BACKUP_TOKEN:-$$(gh auth token)}" \
+	  MAX_PARALLEL=$${MAX_PARALLEL:-4} \
+	  WORK_DIR=$(ROOT_DIR)volume/work \
+	  COMPOSE_FILES="docker-compose.yml docker-compose.local.yml docker-compose.run.yml" \
+	  docker run --rm \
+	    -v /var/run/docker.sock:/var/run/docker.sock \
+	    -v "$(ROOT_DIR)volume/work:/app/mount/work:ro" \
+	    -v "$(ROOT_DIR):/repo:ro" \
+	    -e MAX_PARALLEL \
+	    -e PODCAST_TLDR_BACKUP_TOKEN \
+	    -e WORK_DIR=/app/mount/work \
+	    -e COMPOSE_FILES \
+	    -w /repo \
+	    podcast-tldr-orchestrator:local
 
 .PHONY: install-argo
 install-argo: ## install Argo Workflows into the cluster (UI auth disabled for dev)
