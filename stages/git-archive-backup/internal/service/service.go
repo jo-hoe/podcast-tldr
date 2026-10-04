@@ -36,9 +36,18 @@ func New(cfg *config.Config, opener Opener, episodeID string) *Service {
 }
 
 // Run backs up every not-yet-backed-up episode that has a bundle. Each episode
-// is committed and pushed individually so the archive is updated incrementally —
-// a crash or interruption leaves already-processed episodes safely in the remote.
+// is committed and pushed individually so the archive is updated incrementally.
+//
+// A file lock serialises the entire git operation (open + stage + commit + push)
+// so parallel fan-out containers sharing the work directory never corrupt the
+// shared archive worktree.
 func (s *Service) Run() error {
+	lockPath := filepath.Join(s.cfg.WorkDir, ".git-op.lock")
+	if err := acquireGitLock(lockPath, 15*time.Minute); err != nil {
+		return fmt.Errorf("failed to acquire git lock: %w", err)
+	}
+	defer releaseGitLock(lockPath)
+
 	m, err := manifest.Load(s.cfg.WorkDir)
 	if err != nil {
 		return fmt.Errorf("failed to load manifest: %w", err)
@@ -59,13 +68,10 @@ func (s *Service) Run() error {
 		podcast := &m.Podcasts[pi]
 		for ei := range podcast.Episodes {
 			ep := &podcast.Episodes[ei]
-			if s.episodeID != "" && ep.ID != s.episodeID {
-				continue
-			}
 			if !s.eligible(ep) {
 				continue
 			}
-			if err := s.backupEpisode(repo, podcast.ShowTitle, ep, m); err != nil {
+			if err := s.stageAndCommitEpisode(repo, podcast.ShowTitle, ep, m); err != nil {
 				slog.Error("skipping episode", "id", ep.ID, "err", err)
 				continue
 			}
@@ -81,29 +87,66 @@ func (s *Service) Run() error {
 	return nil
 }
 
-// backupEpisode stages, commits, pushes, marks backed-up, and saves the manifest
-// for a single episode. A git operation lock serialises concurrent fan-out
-// callers so no two containers write to the shared archive worktree at the same time.
-func (s *Service) backupEpisode(repo gitrepo.Repository, showTitle string, ep *manifest.Episode, m *manifest.Manifest) error {
-	// Acquire git lock before touching the worktree.
-	lockPath := filepath.Join(s.cfg.WorkDir, ".git-op.lock")
-	if err := acquireGitLock(lockPath, 10*time.Minute); err != nil {
-		return fmt.Errorf("failed to acquire git lock: %w", err)
-	}
-	defer releaseGitLock(lockPath)
-
+// stageAndCommitEpisode stages, commits, pushes, and marks one episode backed-up.
+// The caller (Run) holds the git-op lock for the duration.
+func (s *Service) stageAndCommitEpisode(repo gitrepo.Repository, showTitle string, ep *manifest.Episode, m *manifest.Manifest) error {
 	if err := s.stageEpisode(repo, showTitle, ep); err != nil {
 		return err
 	}
-
 	msg := fmt.Sprintf("Back up episode: %s", ep.ID)
 	if err := s.commitAndPush(repo, msg); err != nil {
 		return err
 	}
-
 	ep.BackedUp = true
 	if err := m.Save(s.cfg.WorkDir); err != nil {
+		// Non-fatal: episode is in the archive; worst case it gets backed up again.
 		slog.Warn("backed up but failed to save manifest", "id", ep.ID, "err", err)
+	}
+	return nil
+}
+
+// eligible reports whether an episode should be backed up: it must have a bundle,
+// not already be backed up, and (when episodeID is set) match the target ID.
+func (s *Service) eligible(ep *manifest.Episode) bool {
+	if s.episodeID != "" && ep.ID != s.episodeID {
+		return false
+	}
+	return ep.BundleFile != "" && !ep.BackedUp
+}
+
+// stageEpisode copies one episode's bundle and (optional) summary into the repo.
+func (s *Service) stageEpisode(repo gitrepo.Repository, showTitle string, ep *manifest.Episode) error {
+	bundle, err := os.ReadFile(s.workPath(ep.BundleFile))
+	if err != nil {
+		return fmt.Errorf("read bundle: %w", err)
+	}
+	if err := repo.AddFile(layout.BundlePath(showTitle, ep.ID), bundle); err != nil {
+		return err
+	}
+	if ep.SummaryFile != "" {
+		summary, err := os.ReadFile(s.workPath(ep.SummaryFile))
+		if err != nil {
+			return fmt.Errorf("read summary: %w", err)
+		}
+		if err := repo.AddFile(layout.SummaryPath(showTitle, ep.ID), summary); err != nil {
+			return err
+		}
+	}
+	slog.Info("staged episode", "id", ep.ID, "dir", layout.EpisodeDir(showTitle, ep.ID))
+	return nil
+}
+
+func (s *Service) commitAndPush(repo gitrepo.Repository, msg string) error {
+	err := repo.Commit(msg, gitrepo.Author{Name: s.cfg.AuthorName, Email: s.cfg.AuthorEmail})
+	if errors.Is(err, gitrepo.ErrNothingToCommit) {
+		slog.Info("archive already up to date, nothing to commit")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to commit archive: %w", err)
+	}
+	if err := repo.Push(); err != nil {
+		return fmt.Errorf("failed to push archive: %w", err)
 	}
 	return nil
 }
@@ -131,54 +174,6 @@ func acquireGitLock(lockPath string, timeout time.Duration) error {
 }
 
 func releaseGitLock(lockPath string) { _ = os.Remove(lockPath) }
-
-// eligible reports whether an episode should be backed up: it must have a bundle,
-// not already be backed up, and (when episodeID is set) match the target ID.
-func (s *Service) eligible(ep *manifest.Episode) bool {
-	if s.episodeID != "" && ep.ID != s.episodeID {
-		return false
-	}
-	return ep.BundleFile != "" && !ep.BackedUp
-}
-
-// stageEpisode copies one episode's bundle and (optional) summary into the repo.
-func (s *Service) stageEpisode(repo gitrepo.Repository, showTitle string, ep *manifest.Episode) error {
-	bundle, err := os.ReadFile(s.workPath(ep.BundleFile))
-	if err != nil {
-		return fmt.Errorf("read bundle: %w", err)
-	}
-	if err := repo.AddFile(layout.BundlePath(showTitle, ep.ID), bundle); err != nil {
-		return err
-	}
-
-	if ep.SummaryFile != "" {
-		summary, err := os.ReadFile(s.workPath(ep.SummaryFile))
-		if err != nil {
-			return fmt.Errorf("read summary: %w", err)
-		}
-		if err := repo.AddFile(layout.SummaryPath(showTitle, ep.ID), summary); err != nil {
-			return err
-		}
-	}
-
-	slog.Info("staged episode", "id", ep.ID, "dir", layout.EpisodeDir(showTitle, ep.ID))
-	return nil
-}
-
-func (s *Service) commitAndPush(repo gitrepo.Repository, msg string) error {
-	err := repo.Commit(msg, gitrepo.Author{Name: s.cfg.AuthorName, Email: s.cfg.AuthorEmail})
-	if errors.Is(err, gitrepo.ErrNothingToCommit) {
-		slog.Info("archive already up to date, nothing to commit")
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to commit archive: %w", err)
-	}
-	if err := repo.Push(); err != nil {
-		return fmt.Errorf("failed to push archive: %w", err)
-	}
-	return nil
-}
 
 // workPath resolves a work-relative manifest path to an absolute local path.
 func (s *Service) workPath(rel string) string {

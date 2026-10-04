@@ -127,11 +127,24 @@ func openOrClone(opts Options, auth transport.AuthMethod, branchRef plumbing.Ref
 
 // checkoutBranch checks out branchRef, creating it at the current HEAD if it does
 // not exist yet (e.g. the branch was cloned under a different default name).
+// If the worktree has unstaged changes (from a concurrent writer), it resets them
+// first so the checkout succeeds.
 func checkoutBranch(worktree *git.Worktree, branchRef plumbing.ReferenceName) error {
 	err := worktree.Checkout(&git.CheckoutOptions{Branch: branchRef})
 	if err == nil {
 		return nil
 	}
+
+	// Unstaged changes from a concurrent fan-out writer — reset and retry.
+	if err.Error() == "worktree contains unstaged changes" {
+		if resetErr := worktree.Reset(&git.ResetOptions{Mode: git.HardReset}); resetErr != nil {
+			return fmt.Errorf("failed to reset worktree: %w", resetErr)
+		}
+		if checkErr := worktree.Checkout(&git.CheckoutOptions{Branch: branchRef}); checkErr == nil {
+			return nil
+		}
+	}
+
 	if !errors.Is(err, plumbing.ErrReferenceNotFound) {
 		return fmt.Errorf("failed to checkout branch: %w", err)
 	}

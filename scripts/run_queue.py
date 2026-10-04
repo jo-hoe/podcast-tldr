@@ -215,6 +215,34 @@ def main() -> int:
     for t in threads:
         t.join(timeout=5)
 
+    # Auto-retry failed episodes once (transient errors like missing manifest).
+    failed_dir = queue_dir / "failed"
+    failed_ids = [f.name for f in failed_dir.iterdir()] if failed_dir.exists() else []
+    if failed_ids:
+        log.info("Retrying %d failed episodes...", len(failed_ids))
+        retry_q: Queue = Queue()
+        for ep_id in failed_ids:
+            fp = failed_dir / ep_id
+            tp = queue_dir / "todo" / ep_id
+            try:
+                fp.rename(tp)
+                retry_q.put(ep_id)
+            except Exception:
+                pass
+        retry_threads = []
+        for i in range(min(n_workers, retry_q.qsize())):
+            t = threading.Thread(
+                target=worker,
+                args=(i + 1, retry_q, queue_dir, cf, env),
+                name=f"retry-{i+1}",
+                daemon=True,
+            )
+            t.start()
+            retry_threads.append(t)
+        retry_q.join()
+        for t in retry_threads:
+            t.join(timeout=5)
+
     done = len(list((queue_dir / "done").iterdir()))
     failed = len(list((queue_dir / "failed").iterdir()))
     log.info("=== Complete: %d done, %d failed ===", done, failed)
