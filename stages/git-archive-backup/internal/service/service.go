@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/jo-hoe/git-archive-backup/internal/config"
 	"github.com/jo-hoe/git-archive-backup/internal/gitrepo"
@@ -37,17 +36,9 @@ func New(cfg *config.Config, opener Opener, episodeID string) *Service {
 
 // Run backs up every not-yet-backed-up episode that has a bundle. Each episode
 // is committed and pushed individually so the archive is updated incrementally.
-//
-// A file lock serialises the entire git operation (open + stage + commit + push)
-// so parallel fan-out containers sharing the work directory never corrupt the
-// shared archive worktree.
+// When using the GitHub API backend, all pushes are parallel-safe with no lock
+// needed. The go-git backend should only be used for single-instance runs.
 func (s *Service) Run() error {
-	lockPath := filepath.Join(s.cfg.WorkDir, ".git-op.lock")
-	if err := acquireGitLock(lockPath, 30*time.Minute); err != nil {
-		return fmt.Errorf("failed to acquire git lock: %w", err)
-	}
-	defer releaseGitLock(lockPath)
-
 	m, err := manifest.Load(s.cfg.WorkDir)
 	if err != nil {
 		return fmt.Errorf("failed to load manifest: %w", err)
@@ -87,8 +78,7 @@ func (s *Service) Run() error {
 	return nil
 }
 
-// stageAndCommitEpisode stages, commits, pushes, and marks one episode backed-up.
-// The caller (Run) holds the git-op lock for the duration.
+// stageAndCommitEpisode stages, commits, pushes and marks one episode backed-up.
 func (s *Service) stageAndCommitEpisode(repo gitrepo.Repository, showTitle string, ep *manifest.Episode, m *manifest.Manifest) error {
 	if err := s.stageEpisode(repo, showTitle, ep); err != nil {
 		return err
@@ -99,7 +89,6 @@ func (s *Service) stageAndCommitEpisode(repo gitrepo.Repository, showTitle strin
 	}
 	ep.BackedUp = true
 	if err := m.Save(s.cfg.WorkDir); err != nil {
-		// Non-fatal: episode is in the archive; worst case it gets backed up again.
 		slog.Warn("backed up but failed to save manifest", "id", ep.ID, "err", err)
 	}
 	return nil
@@ -150,38 +139,6 @@ func (s *Service) commitAndPush(repo gitrepo.Repository, msg string) error {
 	}
 	return nil
 }
-
-func acquireGitLock(lockPath string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	sleep := 200 * time.Millisecond
-	for {
-		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-		if err == nil {
-			_ = f.Close()
-			return nil
-		}
-		if !os.IsExist(err) {
-			return fmt.Errorf("lock error: %w", err)
-		}
-		// Break stale lock: if the lock file is older than 20 min, the holder
-		// likely crashed without releasing it.
-		if info, statErr := os.Stat(lockPath); statErr == nil {
-			if time.Since(info.ModTime()) > 20*time.Minute {
-				_ = os.Remove(lockPath)
-				continue
-			}
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timed out waiting for git lock after %s", timeout)
-		}
-		time.Sleep(sleep)
-		if sleep < 5*time.Second {
-			sleep = sleep * 3 / 2
-		}
-	}
-}
-
-func releaseGitLock(lockPath string) { _ = os.Remove(lockPath) }
 
 // workPath resolves a work-relative manifest path to an absolute local path.
 func (s *Service) workPath(rel string) string {

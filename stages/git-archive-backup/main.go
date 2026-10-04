@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/jo-hoe/git-archive-backup/internal/config"
+	"github.com/jo-hoe/git-archive-backup/internal/githubapi"
 	"github.com/jo-hoe/git-archive-backup/internal/gitrepo"
 	"github.com/jo-hoe/git-archive-backup/internal/service"
 )
@@ -33,8 +34,13 @@ func main() {
 	}
 }
 
-// openRepository adapts gitrepo.Open to the service.Opener signature.
+// openRepository selects the backend: GitHub Contents API for github.com URLs
+// (fast, no clone, parallel-safe), go-git for everything else.
 func openRepository(opts gitrepo.Options) (gitrepo.Repository, error) {
+	if strings.Contains(opts.RepoURL, "github.com") {
+		slog.Info("using GitHub API backend", "repo", opts.RepoURL)
+		return githubapi.New(opts.RepoURL, opts.Token, opts.Branch)
+	}
 	return gitrepo.Open(opts)
 }
 
