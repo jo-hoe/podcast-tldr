@@ -118,19 +118,25 @@ def process_episode(
     log_path = queue_dir / "logs" / f"{ep_id}.log"
     log_path.parent.mkdir(exist_ok=True)
 
+    # Create in-progress marker
+    ip = in_progress_dir / ep_id
+    ip.touch()
+
     log.info("[%s] processing: %s", worker_name, ep_id)
     for stage in STAGES:
         log.info("[%s] %s → %s", worker_name, ep_id, stage)
         if not run_stage(stage, ep_id, cf, env, log_path):
             log.error("[%s] FAILED %s at %s", worker_name, ep_id, stage)
-            ip = in_progress_dir / ep_id
-            if ip.exists():
+            try:
                 ip.rename(failed_dir / ep_id)
+            except Exception:
+                (failed_dir / ep_id).touch()
             return False
 
-    ip = in_progress_dir / ep_id
-    if ip.exists():
+    try:
         ip.rename(done_dir / ep_id)
+    except Exception:
+        (done_dir / ep_id).touch()
     log.info("[%s] ✓ done: %s", worker_name, ep_id)
     return True
 
@@ -156,7 +162,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    work_dir = args.work_dir
+    work_dir = str(Path(args.work_dir).resolve())
     n_workers = args.workers
 
     # Resolve compose files

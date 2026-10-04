@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -66,14 +65,11 @@ type Options struct {
 // Open clones the archive repository into the checkout directory, or opens and
 // fast-forwards it if the checkout already exists. It checks out the target
 // branch, creating it from the current HEAD when the remote has no such branch.
-//
-// Cloning is serialised with a lockfile so parallel fan-out chains don't corrupt
-// each other's checkout directories when multiple workers clone simultaneously.
 func Open(opts Options) (*GoGitRepository, error) {
 	auth := authMethod(opts.Token)
 	branchRef := plumbing.NewBranchReferenceName(opts.Branch)
 
-	repo, err := openOrCloneWithLock(opts, auth, branchRef)
+	repo, err := openOrClone(opts, auth, branchRef)
 	if err != nil {
 		return nil, err
 	}
@@ -102,35 +98,6 @@ func authMethod(token string) transport.AuthMethod {
 	}
 	// For token auth the username can be any non-empty string.
 	return &http.BasicAuth{Username: "git", Password: token}
-}
-
-func openOrCloneWithLock(opts Options, auth transport.AuthMethod, branchRef plumbing.ReferenceName) (*git.Repository, error) {
-	// If the checkout already exists, open it directly without locking.
-	if _, err := os.Stat(filepath.Join(opts.CheckoutDir, ".git")); err == nil {
-		return openOrClone(opts, auth, branchRef)
-	}
-	// Fresh clone: acquire a lock so parallel workers don't clone simultaneously
-	// into different per-episode dirs (they all hit the same remote and can
-	// corrupt each other's fetches on slow connections).
-	lockPath := filepath.Join(filepath.Dir(opts.CheckoutDir), ".clone.lock")
-	deadline := time.Now().Add(10 * time.Minute)
-	sleep := 500 * time.Millisecond
-	for {
-		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-		if err == nil {
-			_ = f.Close()
-			break
-		}
-		if !os.IsExist(err) {
-			return nil, fmt.Errorf("clone lock error: %w", err)
-		}
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timed out waiting for clone lock")
-		}
-		time.Sleep(sleep)
-	}
-	defer os.Remove(lockPath)
-	return openOrClone(opts, auth, branchRef)
 }
 
 func openOrClone(opts Options, auth transport.AuthMethod, branchRef plumbing.ReferenceName) (*git.Repository, error) {

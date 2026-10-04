@@ -116,13 +116,7 @@ func setDefaults(cfg *Config) {
 		cfg.AuthorEmail = defaultAuthorEmail
 	}
 	if strings.TrimSpace(cfg.CheckoutDir) == "" {
-		// When processing a single episode in fan-out mode, use a per-episode
-		// checkout directory so parallel backup instances don't share a worktree.
-		if episodeID := strings.TrimSpace(os.Getenv("EPISODE_ID")); episodeID != "" {
-			cfg.CheckoutDir = filepath.Join(cfg.WorkDir, defaultCheckoutRel+"-"+episodeID)
-		} else {
-			cfg.CheckoutDir = filepath.Join(cfg.WorkDir, defaultCheckoutRel)
-		}
+		cfg.CheckoutDir = filepath.Join(cfg.WorkDir, defaultCheckoutRel)
 	}
 	// Allow PODCAST_TLDR_BACKUP_REPO env var to override repoURL so the archive
 	// repo URL can be injected via a k8s Secret without landing in the ConfigMap.

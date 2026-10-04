@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jo-hoe/git-archive-backup/internal/config"
 	"github.com/jo-hoe/git-archive-backup/internal/gitrepo"
@@ -81,8 +82,16 @@ func (s *Service) Run() error {
 }
 
 // backupEpisode stages, commits, pushes, marks backed-up, and saves the manifest
-// for a single episode. Any error aborts the episode but leaves the repo clean.
+// for a single episode. A git operation lock serialises concurrent fan-out
+// callers so no two containers write to the shared archive worktree at the same time.
 func (s *Service) backupEpisode(repo gitrepo.Repository, showTitle string, ep *manifest.Episode, m *manifest.Manifest) error {
+	// Acquire git lock before touching the worktree.
+	lockPath := filepath.Join(s.cfg.WorkDir, ".git-op.lock")
+	if err := acquireGitLock(lockPath, 10*time.Minute); err != nil {
+		return fmt.Errorf("failed to acquire git lock: %w", err)
+	}
+	defer releaseGitLock(lockPath)
+
 	if err := s.stageEpisode(repo, showTitle, ep); err != nil {
 		return err
 	}
@@ -94,12 +103,34 @@ func (s *Service) backupEpisode(repo gitrepo.Repository, showTitle string, ep *m
 
 	ep.BackedUp = true
 	if err := m.Save(s.cfg.WorkDir); err != nil {
-		// Non-fatal: the episode is in the archive; worst case it gets backed up
-		// again on the next run (idempotent — same content, duplicate commit).
 		slog.Warn("backed up but failed to save manifest", "id", ep.ID, "err", err)
 	}
 	return nil
 }
+
+func acquireGitLock(lockPath string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	sleep := 200 * time.Millisecond
+	for {
+		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if err == nil {
+			_ = f.Close()
+			return nil
+		}
+		if !os.IsExist(err) {
+			return fmt.Errorf("lock error: %w", err)
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for git lock after %s", timeout)
+		}
+		time.Sleep(sleep)
+		if sleep < 5*time.Second {
+			sleep = sleep * 3 / 2
+		}
+	}
+}
+
+func releaseGitLock(lockPath string) { _ = os.Remove(lockPath) }
 
 // eligible reports whether an episode should be backed up: it must have a bundle,
 // not already be backed up, and (when episodeID is set) match the target ID.
