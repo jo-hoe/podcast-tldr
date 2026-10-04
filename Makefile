@@ -72,26 +72,23 @@ run-fanout-jobs: ## run per-episode fan-out Jobs in k8s (incremental archive com
 	@bash ${ROOT_DIR}scripts/k8s-fanout.sh
 
 .PHONY: run-fanout-compose
-run-fanout-compose: ## fan-out per-episode pipeline locally (download then parallel episode chains)
-	@echo "=== Step 1: Download ==="
+run-fanout-compose: ## fan-out per-episode pipeline locally using work queue (N_WORKERS=4)
 	@PODCAST_TLDR_BACKUP_TOKEN="$${PODCAST_TLDR_BACKUP_TOKEN:-$$(gh auth token)}" \
-	  docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.run.yml \
-	  run --rm download
-	@echo "=== Step 2: Fan-out (MAX_PARALLEL=$${MAX_PARALLEL:-4}) ==="
-	@PODCAST_TLDR_BACKUP_TOKEN="$${PODCAST_TLDR_BACKUP_TOKEN:-$$(gh auth token)}" \
-	  MAX_PARALLEL=$${MAX_PARALLEL:-4} \
-	  WORK_DIR=$(ROOT_DIR)volume/work \
-	  COMPOSE_FILES="docker-compose.yml docker-compose.local.yml docker-compose.run.yml" \
-	  docker run --rm \
-	    -v /var/run/docker.sock:/var/run/docker.sock \
-	    -v "$(ROOT_DIR)volume/work:/app/mount/work:ro" \
-	    -v "$(ROOT_DIR):/repo:ro" \
-	    -e MAX_PARALLEL \
-	    -e PODCAST_TLDR_BACKUP_TOKEN \
-	    -e WORK_DIR=/app/mount/work \
-	    -e COMPOSE_FILES \
-	    -w /repo \
-	    podcast-tldr-orchestrator:local
+	 N_WORKERS=$${N_WORKERS:-4} \
+	 docker run --rm \
+	   -v //./pipe/dockerDesktopLinuxEngine://./pipe/dockerDesktopLinuxEngine \
+	   -v "$(ROOT_DIR):/repo" \
+	   -v "$(ROOT_DIR)volume/work:/repo/volume/work" \
+	   -e "DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine" \
+	   -e "PODCAST_TLDR_BACKUP_TOKEN" \
+	   -e "N_WORKERS" \
+	   -w /repo \
+	   podcast-tldr-orchestrator:local \
+	   python3 /repo/scripts/run_queue.py || \
+	PODCAST_TLDR_BACKUP_TOKEN="$${PODCAST_TLDR_BACKUP_TOKEN:-$$(gh auth token)}" \
+	N_WORKERS=$${N_WORKERS:-4} \
+	  docker compose -f docker-compose.yml -f docker-compose.local.yml \
+	  run --rm orchestrator python3 /repo/scripts/run_queue.py
 
 .PHONY: install-argo
 install-argo: ## install Argo Workflows into the cluster (UI auth disabled for dev)
