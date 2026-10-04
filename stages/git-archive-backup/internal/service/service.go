@@ -43,7 +43,7 @@ func New(cfg *config.Config, opener Opener, episodeID string) *Service {
 // shared archive worktree.
 func (s *Service) Run() error {
 	lockPath := filepath.Join(s.cfg.WorkDir, ".git-op.lock")
-	if err := acquireGitLock(lockPath, 15*time.Minute); err != nil {
+	if err := acquireGitLock(lockPath, 30*time.Minute); err != nil {
 		return fmt.Errorf("failed to acquire git lock: %w", err)
 	}
 	defer releaseGitLock(lockPath)
@@ -162,6 +162,14 @@ func acquireGitLock(lockPath string, timeout time.Duration) error {
 		}
 		if !os.IsExist(err) {
 			return fmt.Errorf("lock error: %w", err)
+		}
+		// Break stale lock: if the lock file is older than 20 min, the holder
+		// likely crashed without releasing it.
+		if info, statErr := os.Stat(lockPath); statErr == nil {
+			if time.Since(info.ModTime()) > 20*time.Minute {
+				_ = os.Remove(lockPath)
+				continue
+			}
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timed out waiting for git lock after %s", timeout)
