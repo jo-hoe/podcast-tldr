@@ -37,17 +37,10 @@ log = logging.getLogger(__name__)
 
 STAGES = ("transcribe", "summarize", "zip", "backup")
 
-# Semaphore limiting concurrent backup containers — backup uses a shared git
-# worktree with a file lock, so serialising at the orchestrator level avoids
+# Semaphore limiting concurrent backup containers to 1 — backup uses a shared
+# git worktree with a file lock, so serialising at the orchestrator level avoids
 # a thundering herd of containers all waiting for the git lock.
-_BACKUP_SEM: threading.Semaphore | None = None
-
-
-def _get_backup_sem() -> threading.Semaphore:
-    global _BACKUP_SEM
-    if _BACKUP_SEM is None:
-        _BACKUP_SEM = threading.Semaphore(1)
-    return _BACKUP_SEM
+_BACKUP_SEM = threading.Semaphore(1)
 
 
 def setup_queue(work_dir: str, compose_files: list[str], env: dict) -> list[str]:
@@ -114,16 +107,15 @@ def run_stage(stage: str, ep_id: str, cf: list[str], env: dict, log_path: Path) 
     ]
     # Serialise backup at the orchestrator level to avoid thundering herd on the
     # shared git worktree — only one backup container runs at a time.
-    sem = _get_backup_sem() if stage == "backup" else None
-    if sem:
-        sem.acquire()
+    if stage == "backup":
+        _BACKUP_SEM.acquire()
     try:
         with open(log_path, "a") as f:
             r = subprocess.run(cmd, env=env, stdin=subprocess.DEVNULL, stdout=f, stderr=f)
         return r.returncode == 0
     finally:
-        if sem:
-            sem.release()
+        if stage == "backup":
+            _BACKUP_SEM.release()
 
 
 def process_episode(
