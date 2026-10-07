@@ -1,7 +1,7 @@
 # github.com/jo-hoe/manifest-lib v0.0.0 => ../../libs/manifest-lib
 ## explicit; go 1.26.0
 github.com/jo-hoe/manifest-lib
-# github.com/sashabaranov/go-openai v1.42.1
+# github.com/sashabaranov/go-openai v1.43.0
 ## explicit; go 1.18
 github.com/sashabaranov/go-openai
 github.com/sashabaranov/go-openai/internal

@@ -1,7 +1,6 @@
 # Go OpenAI
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/sashabaranov/go-openai.svg)](https://pkg.go.dev/github.com/sashabaranov/go-openai)
-[![Go Report Card](https://goreportcard.com/badge/github.com/sashabaranov/go-openai)](https://goreportcard.com/report/github.com/sashabaranov/go-openai)
 [![codecov](https://codecov.io/gh/sashabaranov/go-openai/branch/master/graph/badge.svg?token=bCbIfHLIsW)](https://codecov.io/gh/sashabaranov/go-openai)
 
 An unofficial Go client for the [OpenAI API](https://developers.openai.com/api/docs/overview).
@@ -12,6 +11,8 @@ Chat Completions remains available for existing integrations.
 
 The client also covers embeddings, images, audio, moderation, files, fine-tuning,
 batches, vector stores, and legacy Assistants API surfaces.
+
+**Building agents?** Try [Unreal Agent](https://github.com/unreallabsai/unreal-agent) - Go-based, fully async harness that drives 40% cost savings compared to Codex!
 
 ## Installation
 
@@ -123,16 +124,20 @@ for {
 
 ## Choosing a model
 
-The current GPT-5.6 family exposes separate capability, balance, and efficiency
-tiers. Pick the tier that matches the workload instead of using the flagship for
-every request.
+Choose a model based on the workload's reasoning, latency, and cost requirements.
 
 | Constant | Model ID | Typical use |
 | --- | --- | --- |
-| `GPT5Dot6Sol` | `gpt-5.6-sol` | Complex reasoning and coding |
-| `GPT5Dot6Terra` | `gpt-5.6-terra` | Balance of intelligence and cost |
-| `GPT5Dot6Luna` | `gpt-5.6-luna` | Cost-sensitive, high-volume work |
-| `GPT5Dot6` | `gpt-5.6` | Family alias that currently routes to Sol |
+| `GPT6Dot1Sol` | `gpt-6.1-sol` | Complex coding and professional work |
+| `GPT6Astra` | `gpt-6-astra` | Most demanding reasoning and coding |
+| `GPT6Sol` | `gpt-6-sol` | Previous Sol model |
+| `GPT6Luna` | `gpt-6-luna` | Focused, high-volume work |
+
+GPT-5.6 and earlier model constants remain available. GPT-6.1 Sol and Astra support
+`low`, `medium` (default), `high`, `xhigh`, and `max` reasoning; they do not support
+`none` or `minimal`. GPT-6 Sol and Luna also support `none`. Use Responses for tool
+calling with GPT-6.1 Sol or Astra, or when combining GPT-6 reasoning with tools.
+See [GPT-6 guidance](https://developers.openai.com/api/docs/guides/latest-model).
 
 See the [OpenAI model catalog](https://developers.openai.com/api/docs/models) for
 capabilities and availability. Model IDs are accepted as strings, so you can use
